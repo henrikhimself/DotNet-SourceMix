@@ -15,36 +15,34 @@ internal static class SourceProcessor
     var stripped = rewriter.Visit(root);
     var result = stripped.ToFullString();
 
-    return CollapseBlankLines(result);
+    return PostProcess(result);
   }
 
-  private static string CollapseBlankLines(string text)
+  private static string PostProcess(string text)
   {
     var lines = text.Split('\n');
     var output = new List<string>(lines.Length);
-    var consecutiveBlank = 0;
 
     foreach (var rawLine in lines)
     {
-      var line = rawLine.TrimEnd('\r');
+      var line = rawLine.TrimEnd('\r').Replace("\t", "", StringComparison.Ordinal);
 
       if (string.IsNullOrWhiteSpace(line))
       {
-        consecutiveBlank++;
+        continue;
+      }
 
-        if (consecutiveBlank <= 1)
-        {
-          output.Add(line);
-        }
+      if (line.Trim() == "{" && output.Count > 0)
+      {
+        output[^1] += " {";
       }
       else
       {
-        consecutiveBlank = 0;
         output.Add(line);
       }
     }
 
-    return string.Join("\n", output).TrimStart('\n').TrimEnd('\n', ' ', '\r');
+    return string.Join("\n", output);
   }
 
   private sealed class StripRewriter : CSharpSyntaxRewriter
