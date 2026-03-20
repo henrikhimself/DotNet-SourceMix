@@ -1,12 +1,14 @@
-namespace Hj.SourceMix;
+using System.IO.Abstractions;
 
-internal static class SolutionFinder
+namespace Hj.SourceMix.Core;
+
+public static class SolutionFinder
 {
   private static readonly string[] SolutionExtensions = [".slnx", ".sln"];
 
-  internal static string? FindSolutionDirectory(string startDirectory)
+  public static string? FindSolutionDirectory(IFileSystem fileSystem, string startDirectory)
   {
-    var directory = new DirectoryInfo(startDirectory);
+    var directory = fileSystem.DirectoryInfo.New(startDirectory);
 
     while (directory is not null)
     {

@@ -1,5 +1,6 @@
 ﻿using System.CommandLine;
-using Hj.SourceMix;
+using System.IO.Abstractions;
+using Hj.SourceMix.Core;
 
 var filesArgument = new Argument<string[]>("files")
 {
@@ -23,31 +24,43 @@ var depthOption = new Option<int>("--depth", "-d")
   DefaultValueFactory = _ => int.MaxValue,
 };
 
+var includeCompiledOption = new Option<bool>("--include-compiled", "-c")
+{
+  Description = "Decompile interfaces and simple model types from compiled assemblies in bin/ for types not found in source. Requires --recursive and a prior dotnet build.",
+};
+
 var rootCommand = new RootCommand("Collects .NET C# source files into an LLM AI optimized Markdown file.")
 {
   filesArgument,
   outputOption,
   recursiveOption,
   depthOption,
+  includeCompiledOption,
 };
 
 rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancellationToken) =>
 {
+  var fileSystem = new FileSystem();
   var files = parseResult.GetValue(filesArgument) ?? [];
   var output = parseResult.GetValue(outputOption);
   var recursive = parseResult.GetValue(recursiveOption);
   var depth = parseResult.GetValue(depthOption);
+  var includeCompiled = parseResult.GetValue(includeCompiledOption);
 
   var baseDirectory = Directory.GetCurrentDirectory();
-  var resolvedFiles = GlobResolver.Resolve(files, baseDirectory);
+  var resolvedFiles = GlobResolver.Resolve(fileSystem, files, baseDirectory);
+
+  IReadOnlySet<string> unresolvedTypeNames = new HashSet<string>();
 
   if (recursive && resolvedFiles.Count > 0)
   {
-    var solutionDirectory = SolutionFinder.FindSolutionDirectory(baseDirectory);
+    var solutionDirectory = SolutionFinder.FindSolutionDirectory(fileSystem, baseDirectory);
 
     if (solutionDirectory is not null)
     {
-      resolvedFiles = DependencyResolver.Resolve(resolvedFiles, solutionDirectory, depth);
+      var result = DependencyResolver.Resolve(fileSystem, resolvedFiles, solutionDirectory, depth);
+      resolvedFiles = result.Files;
+      unresolvedTypeNames = result.UnresolvedTypeNames;
     }
   }
 
@@ -55,19 +68,36 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
 
   foreach (var filePath in resolvedFiles)
   {
-    var sourceText = await File.ReadAllTextAsync(filePath, cancellationToken).ConfigureAwait(false);
+    var sourceText = await fileSystem.File.ReadAllTextAsync(filePath, cancellationToken).ConfigureAwait(false);
     processedSources.Add(SourceProcessor.Process(sourceText));
+  }
+
+  var decompiledSources = new List<string>();
+
+  if (includeCompiled && recursive && unresolvedTypeNames.Count > 0)
+  {
+    var solutionDirectory = SolutionFinder.FindSolutionDirectory(fileSystem, baseDirectory);
+
+    if (solutionDirectory is not null)
+    {
+      var decompiled = AssemblyDecompiler.Decompile(unresolvedTypeNames, solutionDirectory);
+
+      foreach (var source in decompiled)
+      {
+        decompiledSources.Add(SourceProcessor.Process(source));
+      }
+    }
   }
 
   if (output is null)
   {
-    OutputFormatter.Write(processedSources, Console.Out);
+    OutputFormatter.Write(processedSources, decompiledSources, Console.Out);
   }
   else
   {
     await using var stream = output.Open(FileMode.Create, FileAccess.Write, FileShare.None);
     await using var writer = new StreamWriter(stream);
-    OutputFormatter.Write(processedSources, writer);
+    OutputFormatter.Write(processedSources, decompiledSources, writer);
   }
 });
 

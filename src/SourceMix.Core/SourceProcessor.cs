@@ -2,11 +2,11 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Hj.SourceMix;
+namespace Hj.SourceMix.Core;
 
-internal static class SourceProcessor
+public static class SourceProcessor
 {
-  internal static string Process(string sourceText)
+  public static string Process(string sourceText)
   {
     var tree = CSharpSyntaxTree.ParseText(sourceText);
     var root = tree.GetRoot();

@@ -1,23 +1,25 @@
+using System.IO.Abstractions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Hj.SourceMix;
+namespace Hj.SourceMix.Core;
 
-internal static class DependencyResolver
+public static class DependencyResolver
 {
-  internal static IReadOnlyList<string> Resolve(
+  public static DependencyResult Resolve(
+    IFileSystem fileSystem,
     IReadOnlyList<string> seedFiles,
     string solutionDirectory,
     int maxDepth)
   {
-    var allCsFiles = Directory.GetFiles(solutionDirectory, "*.cs", SearchOption.AllDirectories);
+    var allCsFiles = fileSystem.Directory.GetFiles(solutionDirectory, "*.cs", SearchOption.AllDirectories);
 
     var fileIndex = new Dictionary<string, SyntaxTree>(StringComparer.OrdinalIgnoreCase);
     foreach (var file in allCsFiles)
     {
-      var fullPath = Path.GetFullPath(file);
-      var source = File.ReadAllText(fullPath);
+      var fullPath = fileSystem.Path.GetFullPath(file);
+      var source = fileSystem.File.ReadAllText(fullPath);
       var tree = CSharpSyntaxTree.ParseText(source, path: fullPath);
       fileIndex[fullPath] = tree;
     }
@@ -25,11 +27,12 @@ internal static class DependencyResolver
     var typeToFiles = BuildTypeToFileMap(fileIndex);
 
     var included = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    var unresolvedTypeNames = new HashSet<string>(StringComparer.Ordinal);
     var currentLevel = new List<string>();
 
     foreach (var seed in seedFiles)
     {
-      var fullPath = Path.GetFullPath(seed);
+      var fullPath = fileSystem.Path.GetFullPath(seed);
 
       if (included.Add(fullPath))
       {
@@ -54,6 +57,7 @@ internal static class DependencyResolver
         {
           if (!typeToFiles.TryGetValue(name, out var definingFiles))
           {
+            unresolvedTypeNames.Add(name);
             continue;
           }
 
@@ -70,10 +74,12 @@ internal static class DependencyResolver
       currentLevel = nextLevel;
     }
 
-    return seedFiles
+    var files = seedFiles
       .Concat(included.Except(seedFiles, StringComparer.OrdinalIgnoreCase))
       .Where(included.Contains)
       .ToList();
+
+    return new DependencyResult(files, unresolvedTypeNames);
   }
 
   private static Dictionary<string, List<string>> BuildTypeToFileMap(
@@ -165,3 +171,7 @@ internal static class DependencyResolver
     }
   }
 }
+
+public sealed record DependencyResult(
+  IReadOnlyList<string> Files,
+  IReadOnlySet<string> UnresolvedTypeNames);

@@ -1,3 +1,7 @@
 <Solution>
+  <Project Path="src/SourceMix.Core/SourceMix.Core.csproj" />
+  <Project Path="src/SourceMix.Tui/SourceMix.Tui.csproj" />
   <Project Path="src/SourceMix/SourceMix.csproj" />
+  <Project Path="test/SourceMix.Tests/SourceMix.Tests.csproj" />
+  <Project Path="test/SourceMix.Tui.Tests/SourceMix.Tui.Tests.csproj" />
 </Solution>
