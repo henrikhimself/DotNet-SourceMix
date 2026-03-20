@@ -10,8 +10,6 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <Copyright>Copyright 2026 Henrik Jensen</Copyright>
-    <!-- CA1707: namespace contains underscore — by design from RootNamespace pattern for project names with dots -->
-    <NoWarn>$(NoWarn);CA1707</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

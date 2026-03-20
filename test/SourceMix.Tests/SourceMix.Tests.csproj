@@ -11,8 +11,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <Copyright>Copyright 2026 Henrik Jensen</Copyright>
     <!-- CA1707: underscore in test method names is standard xUnit convention -->
-    <!-- CA1307: Assert.Contains/DoesNotContain with string args — ordinal comparison is the intent -->
-    <NoWarn>$(NoWarn);CA1707;CA1307</NoWarn>
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

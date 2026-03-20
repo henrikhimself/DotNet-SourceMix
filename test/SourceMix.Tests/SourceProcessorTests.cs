@@ -16,7 +16,7 @@ public sealed class SourceProcessorTests
 
     var result = SourceProcessor.Process(source);
 
-    Assert.DoesNotContain("using", result);
+    Assert.DoesNotContain("using", result, StringComparison.Ordinal);
   }
 
   [Fact]
@@ -35,9 +35,9 @@ public sealed class SourceProcessorTests
 
     var result = SourceProcessor.Process(source);
 
-    Assert.DoesNotContain("//", result);
-    Assert.Contains("public class Foo", result);
-    Assert.Contains("public int Value", result);
+    Assert.DoesNotContain("//", result, StringComparison.Ordinal);
+    Assert.Contains("public class Foo", result, StringComparison.Ordinal);
+    Assert.Contains("public int Value", result, StringComparison.Ordinal);
   }
 
   [Fact]
@@ -53,9 +53,9 @@ public sealed class SourceProcessorTests
 
     var result = SourceProcessor.Process(source);
 
-    Assert.DoesNotContain("/*", result);
-    Assert.DoesNotContain("*/", result);
-    Assert.Contains("public class Foo", result);
+    Assert.DoesNotContain("/*", result, StringComparison.Ordinal);
+    Assert.DoesNotContain("*/", result, StringComparison.Ordinal);
+    Assert.Contains("public class Foo", result, StringComparison.Ordinal);
   }
 
   [Fact]
@@ -76,10 +76,10 @@ public sealed class SourceProcessorTests
 
     var result = SourceProcessor.Process(source);
 
-    Assert.DoesNotContain("///", result);
-    Assert.DoesNotContain("<summary>", result);
-    Assert.Contains("public class Foo", result);
-    Assert.Contains("public void Bar", result);
+    Assert.DoesNotContain("///", result, StringComparison.Ordinal);
+    Assert.DoesNotContain("<summary>", result, StringComparison.Ordinal);
+    Assert.Contains("public class Foo", result, StringComparison.Ordinal);
+    Assert.Contains("public void Bar", result, StringComparison.Ordinal);
   }
 
   [Fact]
@@ -98,8 +98,8 @@ public sealed class SourceProcessorTests
 
     var result = SourceProcessor.Process(source);
 
-    Assert.Contains("public class Foo {", result);
-    Assert.Contains("public void Bar() {", result);
+    Assert.Contains("public class Foo {", result, StringComparison.Ordinal);
+    Assert.Contains("public void Bar() {", result, StringComparison.Ordinal);
   }
 
   [Fact]
@@ -137,9 +137,9 @@ public sealed class SourceProcessorTests
 
     var result = SourceProcessor.Process(source);
 
-    Assert.Contains("namespace MyApp.Services", result);
-    Assert.Contains("public interface IOrderService", result);
-    Assert.Contains("void PlaceOrder(int orderId)", result);
+    Assert.Contains("namespace MyApp.Services", result, StringComparison.Ordinal);
+    Assert.Contains("public interface IOrderService", result, StringComparison.Ordinal);
+    Assert.Contains("void PlaceOrder(int orderId)", result, StringComparison.Ordinal);
   }
 
   [Fact]
