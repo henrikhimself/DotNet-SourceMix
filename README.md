@@ -132,22 +132,24 @@ Replace `<RID>` with the target platform:
 **CLI:**
 
 ```bash
-dotnet publish src/SourceMix -c Release -r <RID> --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true
+dotnet publish src/SourceMix -c Release -r <RID> --self-contained true -p:PublishSingleFile=true
 ```
 
 **TUI:**
 
 ```bash
-dotnet publish src/SourceMix.Tui -c Release -r <RID> --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true
+dotnet publish src/SourceMix.Tui -c Release -r <RID> --self-contained true -p:PublishSingleFile=true
 ```
 
 The executables are written to `src/<Project>/bin/Release/net10.0/<RID>/publish/`.
 
+> **Note:** Avoid `-p:PublishTrimmed=true`. The Roslyn and ICSharpCode.Decompiler libraries used for dependency resolution and decompilation are not trim-safe and will fail at runtime when trimmed.
+
 **Example — macOS Apple Silicon:**
 
 ```bash
-dotnet publish src/SourceMix -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true
-dotnet publish src/SourceMix.Tui -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true
+dotnet publish src/SourceMix -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true
+dotnet publish src/SourceMix.Tui -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true
 ```
 
 Copy the produced binaries to a directory on your `PATH` to use them as global commands:
