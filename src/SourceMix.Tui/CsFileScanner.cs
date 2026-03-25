@@ -33,7 +33,8 @@ internal sealed class CsFileScanner
       }
 
       var relativePath = _fileSystem.Path.GetRelativePath(_solutionDirectory, fullPath);
-      files.Add(new CsFile(fullPath, relativePath));
+      var sizeInBytes = _fileSystem.FileInfo.New(fullPath).Length;
+      files.Add(new CsFile(fullPath, relativePath, sizeInBytes));
     }
 
     files.Sort(static (a, b) => StringComparer.OrdinalIgnoreCase.Compare(a.RelativePath, b.RelativePath));
@@ -59,4 +60,4 @@ internal sealed class CsFileScanner
   }
 }
 
-internal sealed record CsFile(string FullPath, string RelativePath);
+internal sealed record CsFile(string FullPath, string RelativePath, long SizeInBytes);

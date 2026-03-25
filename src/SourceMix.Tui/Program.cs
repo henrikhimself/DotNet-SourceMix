@@ -17,6 +17,7 @@ AnsiConsole.MarkupLine($"[bold]SourceMix[/] [dim]— {Markup.Escape(solutionDire
 AnsiConsole.WriteLine();
 
 var preferences = PreferencesManager.Load(fileSystem, solutionDirectory);
+var globalPreferences = PreferencesManager.LoadGlobal(fileSystem);
 
 var scanner = new CsFileScanner(fileSystem, solutionDirectory);
 IReadOnlyList<CsFile> allFiles = [];
@@ -57,9 +58,13 @@ if (selection.SelectedPaths.Count == 0)
 }
 
 var selectedPaths = selection.SelectedPaths;
+var seedPathSet = new HashSet<string>(selectedPaths, StringComparer.OrdinalIgnoreCase);
 
 AnsiConsole.WriteLine();
 var options = OptionsPrompt.Show(preferences);
+AnsiConsole.WriteLine();
+
+var (selectedPromptText, updatedGlobalPreferences) = PromptSelector.Show(globalPreferences);
 AnsiConsole.WriteLine();
 
 IReadOnlyList<string> resolvedFiles = selectedPaths;
@@ -91,7 +96,8 @@ await AnsiConsole.Progress()
     foreach (var filePath in resolvedFiles)
     {
       var sourceText = await fileSystem.File.ReadAllTextAsync(filePath);
-      processedSources.Add(SourceProcessor.Process(sourceText));
+      var isSeed = seedPathSet.Contains(filePath);
+      processedSources.Add(SourceProcessor.Process(sourceText, trim: options.Trim && !isSeed));
       task.Increment(1);
     }
   });
@@ -126,6 +132,11 @@ await using (var stream = outputFile.Open(FileMode.Create, FileAccess.Write, Fil
 await using (var writer = new StreamWriter(stream))
 {
   OutputFormatter.Write(processedSources, decompiledSources, writer);
+
+  if (selectedPromptText is not null)
+  {
+    OutputFormatter.WritePrompt(writer, selectedPromptText);
+  }
 }
 
 var pinnedRelativePaths = selection.PinnedPaths
@@ -144,10 +155,16 @@ var updatedPreferences = new SolutionPreferences
     LimitDepth = options.MaxDepth != int.MaxValue,
     MaxDepth = options.MaxDepth == int.MaxValue ? 3 : options.MaxDepth,
     IncludeCompiled = options.IncludeCompiled,
+    Trim = options.Trim,
   },
 };
 
 PreferencesManager.Save(fileSystem, solutionDirectory, updatedPreferences);
+
+if (!ReferenceEquals(globalPreferences, updatedGlobalPreferences))
+{
+  PreferencesManager.SaveGlobal(fileSystem, updatedGlobalPreferences);
+}
 
 AnsiConsole.WriteLine();
 AnsiConsole.MarkupLine($"[green]✓[/] Written to [bold]{Markup.Escape(options.OutputPath)}[/]");

@@ -12,10 +12,12 @@ sourcemix-tui
 
 ### Wizard flow
 
-1. **Search & select files** — type to filter `.cs` files by name in real-time, navigate with `↑↓`, toggle selection with `Space`, pin a file with `P` (select + mark for next run), confirm with `Enter`. Press `Tab` to switch to the Pinned view. Pinned files from previous runs are preselected and marked with `●`.
-2. **Pinned files view** — press `Tab` to switch to a list of all pinned files. Use `↑↓` to navigate and `Space` or `P` to unpin (and deselect) individual files. Press `Tab` again to return to search.
-2. **Configure options** — choose recursive dependency resolution, recursion depth limit, and whether to decompile types from compiled assemblies. Defaults are loaded from saved preferences.
-3. **Generate** — output is written to `~/sourcemix.md` by default (configurable). Preferences are auto-saved for the next run.
+1. **Search & select files** — type to filter `.cs` files by name in real-time, navigate with `↑↓`, toggle selection with `Space`, pin a file with `Ctrl+P` (select + mark for next run), confirm with `Enter`. Press `Tab` to switch to the Pinned view. Pinned files from previous runs are preselected and marked with `*`. A live token estimate (≈ bytes ÷ 4) is shown in the header; turns yellow above 100k tokens and red above the 128k M365 Copilot Chat limit.
+2. **Pinned files view** — press `Tab` to switch to a list of all pinned files. Use `↑↓` to navigate and `Space` or `Ctrl+P` to unpin (and deselect) individual files. Press `Tab` again to go to the Selected view.
+3. **Selected files view** — press `Tab` to see all currently selected files. Use `Space` to deselect. Press `Tab` again to return to search.
+4. **Configure options** — choose recursive dependency resolution, recursion depth limit, whether to decompile types from compiled assemblies, and whether to trim method bodies from dependency files (keep signatures only). Defaults are loaded from saved preferences.
+5. **Select prompt** — optionally append a built-in prompt personality (`unit-test`, `code-review`, `tech-docs`, `explain`, `debug`, `refactor`, `architecture`) or a saved custom prompt to the output. Custom prompts are shared across all solutions.
+6. **Generate** — output is written to `~/sourcemix.md` by default (configurable). Preferences are auto-saved for the next run.
 
 > **Note:** The `--include-compiled` option requires a prior `dotnet build` so assemblies exist in the `bin/` directories.
 
@@ -47,14 +49,36 @@ Each solution gets its own preferences file, identified by a hash of the solutio
     "recursive": true,
     "limitDepth": false,
     "maxDepth": 3,
-    "includeCompiled": false
+    "includeCompiled": false,
+    "trim": false
   }
 }
 ```
 
-- **pinnedFiles** — relative paths from the solution root; explicitly pinned with `P` in the file picker, preselected on the next run
+- **pinnedFiles** — relative paths from the solution root; explicitly pinned with `Ctrl+P` in the file picker, preselected on the next run
 - **outputPath** — overrides the default `~/sourcemix.md`; omit to use the default
-- **defaults** — default answers for each wizard prompt
+- **defaults** — default answers for each wizard prompt; `trim` strips method bodies from dependency files
+
+### Global preferences
+
+Custom prompts are stored in a single global file shared across all solutions:
+
+| Platform | Location |
+|---|---|
+| Windows | `%APPDATA%\sourcemix\sourcemix-global.json` |
+| Linux | `~/.config/sourcemix/sourcemix-global.json` |
+| macOS | `~/.config/sourcemix/sourcemix-global.json` |
+
+**Schema:**
+
+```json
+{
+  "customPrompts": {
+    "our-review": "Review against our team coding standards...",
+    "sprint-demo": "Summarise changes suitable for a sprint review demo..."
+  }
+}
+```
 
 ## CLI Usage
 
@@ -72,6 +96,8 @@ sourcemix [<files>...] [--output <path>] [--recursive] [--depth <n>] [--include-
 - `-r`, `--recursive` — recursively include files that define types referenced by the specified files
 - `-d`, `--depth <n>` — maximum recursion depth when `--recursive` is used (defaults to no limit)
 - `-c`, `--include-compiled` — decompile interfaces and simple model types from compiled assemblies in `bin/` for types not found in source; requires `--recursive` and a prior `dotnet build`
+- `-t`, `--trim` — strip method bodies from dependency files, keeping type signatures only; requires `--recursive`
+- `-p`, `--prompt <name-or-text>` — append a prompt personality to the output; use a built-in key (`unit-test`, `code-review`, `tech-docs`, `explain`, `debug`, `refactor`, `architecture`) or provide custom text
 
 **Examples:**
 
@@ -84,6 +110,9 @@ sourcemix Foo.cs Bar.cs Baz.cs
 
 # Recursively include referenced source types and decompile unresolved NuGet types
 sourcemix MyService.cs -r -c -o context.md
+
+# Trim dependency method bodies and append a unit-test prompt
+sourcemix MyService.cs -r -t --prompt unit-test -o context.md
 ```
 
 ## Publish as a self-contained executable

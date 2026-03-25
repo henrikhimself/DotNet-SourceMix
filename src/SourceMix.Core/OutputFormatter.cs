@@ -37,4 +37,13 @@ public static class OutputFormatter
       }
     }
   }
+
+  public static void WritePrompt(TextWriter writer, string promptText)
+  {
+    writer.WriteLine();
+    writer.WriteLine("---");
+    writer.WriteLine("## Instructions");
+    writer.WriteLine();
+    writer.WriteLine(promptText);
+  }
 }

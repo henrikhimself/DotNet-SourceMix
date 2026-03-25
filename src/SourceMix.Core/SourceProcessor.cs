@@ -6,13 +6,20 @@ namespace Hj.SourceMix.Core;
 
 public static class SourceProcessor
 {
-  public static string Process(string sourceText)
+  public static string Process(string sourceText, bool trim = false)
   {
     var tree = CSharpSyntaxTree.ParseText(sourceText);
     var root = tree.GetRoot();
 
-    var rewriter = new StripRewriter();
-    var stripped = rewriter.Visit(root);
+    var stripRewriter = new StripRewriter();
+    var stripped = stripRewriter.Visit(root);
+
+    if (trim)
+    {
+      var trimRewriter = new TrimRewriter();
+      stripped = trimRewriter.Visit(stripped);
+    }
+
     var result = stripped.ToFullString();
 
     return PostProcess(result);
@@ -62,6 +69,128 @@ public static class SourceProcessor
         SyntaxKind.DocumentationCommentExteriorTrivia => SyntaxFactory.ElasticMarker,
         _ => base.VisitTrivia(trivia),
       };
+    }
+  }
+
+  private sealed class TrimRewriter : CSharpSyntaxRewriter
+  {
+    private static BlockSyntax EmptyBlock => SyntaxFactory.Block();
+
+    public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
+    {
+      if (node.Body is not null)
+      {
+        node = node.WithBody(EmptyBlock);
+      }
+      else if (node.ExpressionBody is not null)
+      {
+        node = node.WithExpressionBody(null).WithSemicolonToken(default).WithBody(EmptyBlock);
+      }
+
+      return base.VisitMethodDeclaration(node);
+    }
+
+    public override SyntaxNode? VisitConstructorDeclaration(ConstructorDeclarationSyntax node)
+    {
+      if (node.Body is not null)
+      {
+        node = node.WithBody(EmptyBlock);
+      }
+      else if (node.ExpressionBody is not null)
+      {
+        node = node.WithExpressionBody(null).WithSemicolonToken(default).WithBody(EmptyBlock);
+      }
+
+      return base.VisitConstructorDeclaration(node);
+    }
+
+    public override SyntaxNode? VisitDestructorDeclaration(DestructorDeclarationSyntax node)
+    {
+      if (node.Body is not null)
+      {
+        node = node.WithBody(EmptyBlock);
+      }
+      else if (node.ExpressionBody is not null)
+      {
+        node = node.WithExpressionBody(null).WithSemicolonToken(default).WithBody(EmptyBlock);
+      }
+
+      return base.VisitDestructorDeclaration(node);
+    }
+
+    public override SyntaxNode? VisitOperatorDeclaration(OperatorDeclarationSyntax node)
+    {
+      if (node.Body is not null)
+      {
+        node = node.WithBody(EmptyBlock);
+      }
+      else if (node.ExpressionBody is not null)
+      {
+        node = node.WithExpressionBody(null).WithSemicolonToken(default).WithBody(EmptyBlock);
+      }
+
+      return base.VisitOperatorDeclaration(node);
+    }
+
+    public override SyntaxNode? VisitConversionOperatorDeclaration(ConversionOperatorDeclarationSyntax node)
+    {
+      if (node.Body is not null)
+      {
+        node = node.WithBody(EmptyBlock);
+      }
+      else if (node.ExpressionBody is not null)
+      {
+        node = node.WithExpressionBody(null).WithSemicolonToken(default).WithBody(EmptyBlock);
+      }
+
+      return base.VisitConversionOperatorDeclaration(node);
+    }
+
+    public override SyntaxNode? VisitPropertyDeclaration(PropertyDeclarationSyntax node)
+    {
+      if (node.ExpressionBody is not null)
+      {
+        var getAccessor = SyntaxFactory
+          .AccessorDeclaration(SyntaxKind.GetAccessorDeclaration)
+          .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
+
+        node = node
+          .WithExpressionBody(null)
+          .WithSemicolonToken(default)
+          .WithAccessorList(SyntaxFactory.AccessorList(SyntaxFactory.SingletonList(getAccessor)));
+      }
+
+      return base.VisitPropertyDeclaration(node);
+    }
+
+    public override SyntaxNode? VisitIndexerDeclaration(IndexerDeclarationSyntax node)
+    {
+      if (node.ExpressionBody is not null)
+      {
+        var getAccessor = SyntaxFactory
+          .AccessorDeclaration(SyntaxKind.GetAccessorDeclaration)
+          .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
+
+        node = node
+          .WithExpressionBody(null)
+          .WithSemicolonToken(default)
+          .WithAccessorList(SyntaxFactory.AccessorList(SyntaxFactory.SingletonList(getAccessor)));
+      }
+
+      return base.VisitIndexerDeclaration(node);
+    }
+
+    public override SyntaxNode? VisitAccessorDeclaration(AccessorDeclarationSyntax node)
+    {
+      if (node.Body is not null || node.ExpressionBody is not null)
+      {
+        return node
+          .WithBody(null)
+          .WithExpressionBody(null)
+          .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
+      }
+
+      return base.VisitAccessorDeclaration(node);
     }
   }
 }

@@ -71,4 +71,38 @@ public static class PreferencesManager
     var json = JsonSerializer.Serialize(preferences, PreferencesJsonContext.Default.SolutionPreferences);
     fileSystem.File.WriteAllText(path, json);
   }
+
+  public static string GetGlobalPreferencesPath()
+  {
+    return Path.Combine(GetConfigDirectory(), "sourcemix-global.json");
+  }
+
+  public static GlobalPreferences LoadGlobal(IFileSystem fileSystem)
+  {
+    var path = GetGlobalPreferencesPath();
+
+    if (!fileSystem.File.Exists(path))
+    {
+      return new GlobalPreferences();
+    }
+
+    var json = fileSystem.File.ReadAllText(path);
+    var preferences = JsonSerializer.Deserialize(json, GlobalPreferencesJsonContext.Default.GlobalPreferences);
+
+    return preferences ?? new GlobalPreferences();
+  }
+
+  public static void SaveGlobal(IFileSystem fileSystem, GlobalPreferences preferences)
+  {
+    var configDir = GetConfigDirectory();
+
+    if (!fileSystem.Directory.Exists(configDir))
+    {
+      fileSystem.Directory.CreateDirectory(configDir);
+    }
+
+    var path = GetGlobalPreferencesPath();
+    var json = JsonSerializer.Serialize(preferences, GlobalPreferencesJsonContext.Default.GlobalPreferences);
+    fileSystem.File.WriteAllText(path, json);
+  }
 }

@@ -29,6 +29,16 @@ var includeCompiledOption = new Option<bool>("--include-compiled", "-c")
   Description = "Decompile interfaces and simple model types from compiled assemblies in bin/ for types not found in source. Requires --recursive and a prior dotnet build.",
 };
 
+var trimOption = new Option<bool>("--trim", "-t")
+{
+  Description = "Strip method bodies from dependency files, keeping type signatures only. Requires --recursive.",
+};
+
+var promptOption = new Option<string?>("--prompt", "-p")
+{
+  Description = "Append a prompt personality to the output. Use a built-in key (unit-test, code-review, tech-docs, explain, debug, refactor, architecture) or provide custom text.",
+};
+
 var rootCommand = new RootCommand("Collects .NET C# source files into an LLM AI optimized Markdown file.")
 {
   filesArgument,
@@ -36,6 +46,8 @@ var rootCommand = new RootCommand("Collects .NET C# source files into an LLM AI 
   recursiveOption,
   depthOption,
   includeCompiledOption,
+  trimOption,
+  promptOption,
 };
 
 rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancellationToken) =>
@@ -46,19 +58,23 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
   var recursive = parseResult.GetValue(recursiveOption);
   var depth = parseResult.GetValue(depthOption);
   var includeCompiled = parseResult.GetValue(includeCompiledOption);
+  var trim = parseResult.GetValue(trimOption);
+  var promptValue = parseResult.GetValue(promptOption);
 
   var baseDirectory = Directory.GetCurrentDirectory();
-  var resolvedFiles = GlobResolver.Resolve(fileSystem, files, baseDirectory);
+  var seedFiles = GlobResolver.Resolve(fileSystem, files, baseDirectory);
+  var seedPathSet = new HashSet<string>(seedFiles, StringComparer.OrdinalIgnoreCase);
+  var resolvedFiles = (IReadOnlyList<string>)seedFiles;
 
   IReadOnlySet<string> unresolvedTypeNames = new HashSet<string>();
 
-  if (recursive && resolvedFiles.Count > 0)
+  if (recursive && seedFiles.Count > 0)
   {
     var solutionDirectory = SolutionFinder.FindSolutionDirectory(fileSystem, baseDirectory);
 
     if (solutionDirectory is not null)
     {
-      var result = DependencyResolver.Resolve(fileSystem, resolvedFiles, solutionDirectory, depth);
+      var result = DependencyResolver.Resolve(fileSystem, seedFiles, solutionDirectory, depth);
       resolvedFiles = result.Files;
       unresolvedTypeNames = result.UnresolvedTypeNames;
     }
@@ -69,7 +85,8 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
   foreach (var filePath in resolvedFiles)
   {
     var sourceText = await fileSystem.File.ReadAllTextAsync(filePath, cancellationToken).ConfigureAwait(false);
-    processedSources.Add(SourceProcessor.Process(sourceText));
+    var isSeed = seedPathSet.Contains(filePath);
+    processedSources.Add(SourceProcessor.Process(sourceText, trim: trim && !isSeed));
   }
 
   var decompiledSources = new List<string>();
@@ -92,14 +109,32 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
   if (output is null)
   {
     OutputFormatter.Write(processedSources, decompiledSources, Console.Out);
+    WritePromptIfSet(promptValue, Console.Out);
   }
   else
   {
     await using var stream = output.Open(FileMode.Create, FileAccess.Write, FileShare.None);
     await using var writer = new StreamWriter(stream);
     OutputFormatter.Write(processedSources, decompiledSources, writer);
+    WritePromptIfSet(promptValue, writer);
   }
 });
 
 return await rootCommand.Parse(args).InvokeAsync().ConfigureAwait(false);
+
+static void WritePromptIfSet(string? promptValue, TextWriter writer)
+{
+  if (promptValue is null)
+  {
+    return;
+  }
+
+  if (BuiltInPrompts.All.TryGetValue(promptValue, out var builtIn))
+  {
+    OutputFormatter.WritePrompt(writer, builtIn.Text);
+    return;
+  }
+
+  OutputFormatter.WritePrompt(writer, promptValue);
+}
 

@@ -18,12 +18,13 @@ public static class AssemblyDecompiler
     }
 
     var results = new List<string>();
+    var decompiledTypeNames = new HashSet<string>(StringComparer.Ordinal);
 
     foreach (var assemblyPath in assemblyPaths)
     {
       try
       {
-        var decompiled = DecompileFromAssembly(typeNames, assemblyPath);
+        var decompiled = DecompileFromAssembly(typeNames, assemblyPath, decompiledTypeNames);
         results.AddRange(decompiled);
       }
       catch (Exception)
@@ -58,7 +59,8 @@ public static class AssemblyDecompiler
 
   private static List<string> DecompileFromAssembly(
     IReadOnlySet<string> typeNames,
-    string assemblyPath)
+    string assemblyPath,
+    HashSet<string> decompiledTypeNames)
   {
     var settings = new DecompilerSettings
     {
@@ -71,6 +73,11 @@ public static class AssemblyDecompiler
     foreach (var typeDef in decompiler.TypeSystem.MainModule.TypeDefinitions)
     {
       if (!typeNames.Contains(typeDef.Name))
+      {
+        continue;
+      }
+
+      if (!decompiledTypeNames.Add(typeDef.FullTypeName.ToString()))
       {
         continue;
       }

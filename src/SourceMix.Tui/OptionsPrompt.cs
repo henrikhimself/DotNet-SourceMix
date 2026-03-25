@@ -7,6 +7,7 @@ internal sealed record MixOptions(
   bool Recursive,
   int MaxDepth,
   bool IncludeCompiled,
+  bool Trim,
   string OutputPath);
 
 internal static class OptionsPrompt
@@ -22,6 +23,7 @@ internal static class OptionsPrompt
 
     var maxDepth = int.MaxValue;
     var includeCompiled = false;
+    var trim = false;
 
     if (recursive)
     {
@@ -40,6 +42,10 @@ internal static class OptionsPrompt
       includeCompiled = AnsiConsole.Confirm(
         "  [blue]Decompile[/] interfaces and models from compiled assemblies ([dim]requires dotnet build[/])?",
         defaultValue: defaults.IncludeCompiled);
+
+      trim = AnsiConsole.Confirm(
+        "  [blue]Trim[/] method bodies from dependency files ([dim]keep signatures only[/])?",
+        defaultValue: defaults.Trim);
     }
 
     var defaultOutput = preferences.OutputPath
@@ -59,6 +65,6 @@ internal static class OptionsPrompt
             : ValidationResult.Error($"[red]Directory does not exist: {Markup.Escape(dir)}[/]");
         }));
 
-    return new MixOptions(recursive, maxDepth, includeCompiled, outputPath);
+    return new MixOptions(recursive, maxDepth, includeCompiled, trim, outputPath);
   }
 }

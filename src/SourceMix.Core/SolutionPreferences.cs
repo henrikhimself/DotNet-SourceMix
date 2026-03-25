@@ -22,6 +22,8 @@ public sealed record PreferenceDefaults
   public int MaxDepth { get; init; } = 3;
 
   public bool IncludeCompiled { get; init; }
+
+  public bool Trim { get; init; }
 }
 
 [JsonSerializable(typeof(SolutionPreferences))]
