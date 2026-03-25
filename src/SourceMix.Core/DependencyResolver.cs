@@ -52,16 +52,21 @@ public static class DependencyResolver
         }
 
         var referencedNames = ExtractReferencedTypeNames(tree);
+        var usingNamespaces = ExtractUsingNamespaces(tree);
 
         foreach (var name in referencedNames)
         {
-          if (!typeToFiles.TryGetValue(name, out var definingFiles))
+          if (!typeToFiles.TryGetValue(name, out var candidates))
           {
             unresolvedTypeNames.Add(name);
             continue;
           }
 
-          foreach (var definingFile in definingFiles)
+          var resolvedFiles = candidates.Count > 1
+            ? NarrowByNamespace(candidates, usingNamespaces)
+            : candidates;
+
+          foreach (var (definingFile, _) in resolvedFiles)
           {
             if (included.Add(definingFile))
             {
@@ -82,10 +87,10 @@ public static class DependencyResolver
     return new DependencyResult(files, unresolvedTypeNames);
   }
 
-  private static Dictionary<string, List<string>> BuildTypeToFileMap(
+  private static Dictionary<string, List<(string FilePath, string? Namespace)>> BuildTypeToFileMap(
     Dictionary<string, SyntaxTree> fileIndex)
   {
-    var map = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+    var map = new Dictionary<string, List<(string FilePath, string? Namespace)>>(StringComparer.Ordinal);
 
     foreach (var (filePath, tree) in fileIndex)
     {
@@ -109,20 +114,71 @@ public static class DependencyResolver
           continue;
         }
 
+        var ns = GetEnclosingNamespace(declaration);
+
         if (!map.TryGetValue(name, out var list))
         {
           list = [];
           map[name] = list;
         }
 
-        if (!list.Contains(filePath, StringComparer.OrdinalIgnoreCase))
+        if (!list.Any(e => string.Equals(e.FilePath, filePath, StringComparison.OrdinalIgnoreCase)))
         {
-          list.Add(filePath);
+          list.Add((filePath, ns));
         }
       }
     }
 
     return map;
+  }
+
+  private static List<(string FilePath, string? Namespace)> NarrowByNamespace(
+    List<(string FilePath, string? Namespace)> candidates,
+    HashSet<string> usingNamespaces)
+  {
+    var narrowed = candidates
+      .Where(c => c.Namespace is not null && usingNamespaces.Contains(c.Namespace))
+      .ToList();
+
+    return narrowed.Count > 0 ? narrowed : candidates;
+  }
+
+  private static string? GetEnclosingNamespace(SyntaxNode node)
+  {
+    var parent = node.Parent;
+
+    while (parent is not null)
+    {
+      if (parent is NamespaceDeclarationSyntax ns)
+      {
+        return ns.Name.ToString();
+      }
+
+      if (parent is FileScopedNamespaceDeclarationSyntax fsns)
+      {
+        return fsns.Name.ToString();
+      }
+
+      parent = parent.Parent;
+    }
+
+    return null;
+  }
+
+  private static HashSet<string> ExtractUsingNamespaces(SyntaxTree tree)
+  {
+    var namespaces = new HashSet<string>(StringComparer.Ordinal);
+    var root = tree.GetRoot();
+
+    foreach (var usingDirective in root.DescendantNodes().OfType<UsingDirectiveSyntax>())
+    {
+      if (!usingDirective.StaticKeyword.IsKind(SyntaxKind.StaticKeyword) && usingDirective.Alias is null)
+      {
+        namespaces.Add(usingDirective.NamespaceOrType.ToString());
+      }
+    }
+
+    return namespaces;
   }
 
   private static HashSet<string> ExtractReferencedTypeNames(SyntaxTree tree)
