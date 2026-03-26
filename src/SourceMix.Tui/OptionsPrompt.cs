@@ -19,7 +19,12 @@ internal static class OptionsPrompt
 
     var defaults = preferences.Defaults;
 
-    var recursive = AnsiConsole.Confirm("Include [blue]recursive[/] type dependencies?", defaultValue: defaults.Recursive);
+    var recursive = new ConfirmationPrompt("Include [darkorange]recursive[/] type dependencies?")
+    {
+      DefaultValue = defaults.Recursive,
+    }
+    .ChoicesStyle(new Style(Color.DarkOrange))
+    .Show(AnsiConsole.Console);
 
     var maxDepth = int.MaxValue;
     var includeCompiled = false;
@@ -27,7 +32,12 @@ internal static class OptionsPrompt
 
     if (recursive)
     {
-      var limitDepth = AnsiConsole.Confirm("  Limit recursion [blue]depth[/]?", defaultValue: defaults.LimitDepth);
+      var limitDepth = new ConfirmationPrompt("  Limit recursion [darkorange]depth[/]?")
+      {
+        DefaultValue = defaults.LimitDepth,
+      }
+      .ChoicesStyle(new Style(Color.DarkOrange))
+      .Show(AnsiConsole.Console);
 
       if (limitDepth)
       {
@@ -39,13 +49,21 @@ internal static class OptionsPrompt
               : ValidationResult.Error("[red]Depth must be greater than 0.[/]")));
       }
 
-      includeCompiled = AnsiConsole.Confirm(
-        "  [blue]Decompile[/] interfaces and models from compiled assemblies ([dim]requires dotnet build[/])?",
-        defaultValue: defaults.IncludeCompiled);
+      includeCompiled = new ConfirmationPrompt(
+        "  [darkorange]Decompile[/] interfaces and models from compiled assemblies ([dim]requires dotnet build[/])?")
+      {
+        DefaultValue = defaults.IncludeCompiled,
+      }
+      .ChoicesStyle(new Style(Color.DarkOrange))
+      .Show(AnsiConsole.Console);
 
-      trim = AnsiConsole.Confirm(
-        "  [blue]Trim[/] method bodies from dependency files ([dim]keep signatures only[/])?",
-        defaultValue: defaults.Trim);
+      trim = new ConfirmationPrompt(
+        "  [darkorange]Trim[/] method bodies from dependency files ([dim]keep signatures only[/])?")
+      {
+        DefaultValue = defaults.Trim,
+      }
+      .ChoicesStyle(new Style(Color.DarkOrange))
+      .Show(AnsiConsole.Console);
     }
 
     var defaultOutput = preferences.OutputPath

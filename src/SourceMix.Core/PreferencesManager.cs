@@ -54,8 +54,9 @@ public static class PreferencesManager
 
     var json = fileSystem.File.ReadAllText(path);
     var preferences = JsonSerializer.Deserialize(json, PreferencesJsonContext.Default.SolutionPreferences);
+    preferences = NormalizePreferences(preferences, solutionDirectory);
 
-    return preferences ?? new SolutionPreferences { SolutionPath = solutionDirectory };
+    return preferences;
   }
 
   public static void Save(IFileSystem fileSystem, string solutionDirectory, SolutionPreferences preferences)
@@ -72,8 +73,12 @@ public static class PreferencesManager
     fileSystem.File.WriteAllText(path, json);
   }
 
-  public static string GetGlobalPreferencesPath()
+  public static string GetSkillsDirectory()
   {
+    return Path.Combine(GetConfigDirectory(), "skills");
+  }
+
+  public static string GetGlobalPreferencesPath()  {
     return Path.Combine(GetConfigDirectory(), "sourcemix-global.json");
   }
 
@@ -104,5 +109,19 @@ public static class PreferencesManager
     var path = GetGlobalPreferencesPath();
     var json = JsonSerializer.Serialize(preferences, GlobalPreferencesJsonContext.Default.GlobalPreferences);
     fileSystem.File.WriteAllText(path, json);
+  }
+
+  private static SolutionPreferences NormalizePreferences(SolutionPreferences? preferences, string solutionDirectory)
+  {
+    if (preferences is null)
+    {
+      return new SolutionPreferences { SolutionPath = solutionDirectory };
+    }
+
+    return preferences with
+    {
+      PinnedFiles = preferences.PinnedFiles ?? [],
+      PinnedSkills = preferences.PinnedSkills ?? [],
+    };
   }
 }

@@ -11,6 +11,10 @@ public sealed record SolutionPreferences
   public string? OutputPath { get; init; }
 
   public PreferenceDefaults Defaults { get; init; } = new();
+
+  public string? DefaultPromptKey { get; init; }
+
+  public List<string> PinnedSkills { get; init; } = [];
 }
 
 public sealed record PreferenceDefaults

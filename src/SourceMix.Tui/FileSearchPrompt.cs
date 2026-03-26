@@ -49,13 +49,11 @@ internal static class FileSearchPrompt
         selectedCursor = selectedList.Count - 1;
       }
 
-      var tokenEstimate = FormatTokenEstimate(files, selected);
-
       var renderedLines = view switch
       {
-        ViewMode.Search => RenderSearch(search, filtered, selected, pinned, searchCursor, searchScroll, tokenEstimate),
-        ViewMode.Pinned => RenderPinned(pinnedList, selected, pinned, pinnedCursor, pinnedScroll, tokenEstimate),
-        _ => RenderSelected(selectedList, selected, pinned, selectedCursor, selectedScroll, tokenEstimate),
+        ViewMode.Search => RenderSearch(search, filtered, selected, pinned, searchCursor, searchScroll),
+        ViewMode.Pinned => RenderPinned(pinnedList, selected, pinned, pinnedCursor, pinnedScroll),
+        _ => RenderSelected(selectedList, selected, pinned, selectedCursor, selectedScroll),
       };
 
       var key = Console.ReadKey(intercept: true);
@@ -301,14 +299,13 @@ internal static class FileSearchPrompt
     HashSet<string> selected,
     HashSet<string> pinned,
     int cursorIndex,
-    int scrollOffset,
-    string tokenEstimate)
+    int scrollOffset)
   {
     var searchDisplay = string.IsNullOrEmpty(search) ? "[dim]<type to filter>[/]" : $"[yellow]{search}[/]";
     var matchCount = filtered.Count == 1 ? "1 match" : $"{filtered.Count} matches";
 
     AnsiConsole.MarkupLine($"[bold underline]Search[/]  [dim]Pinned ({pinned.Count})[/]  [dim]Selected ({selected.Count})[/]  [dim](Tab · Space select · Ctrl+P pin · Ctrl+U clear · Enter confirm)[/]");
-    AnsiConsole.MarkupLine($"  Filter: {searchDisplay}  [dim]({matchCount} · {tokenEstimate})[/]");
+    AnsiConsole.MarkupLine($"  Filter: {searchDisplay}  [dim]({matchCount})[/]");
     AnsiConsole.WriteLine();
 
     var visibleEnd = Math.Min(scrollOffset + MaxVisible, filtered.Count);
@@ -321,7 +318,7 @@ internal static class FileSearchPrompt
       var isCursor = i == cursorIndex;
 
       var checkbox = isSelected ? "[green]+[/]" : "[dim]-[/]";
-      var arrow = isCursor ? "[blue]>[/]" : " ";
+      var arrow = isCursor ? "[darkorange]>[/]" : " ";
       var pin = isPinned ? " [cyan]*[/]" : string.Empty;
 
       if (isCursor)
@@ -361,10 +358,9 @@ internal static class FileSearchPrompt
     HashSet<string> selected,
     HashSet<string> pinned,
     int cursorIndex,
-    int scrollOffset,
-    string tokenEstimate)
+    int scrollOffset)
   {
-    AnsiConsole.MarkupLine($"[dim]Search[/]  [bold underline]Pinned ({pinned.Count})[/]  [dim]Selected ({selected.Count})[/]  {tokenEstimate}  [dim](Tab · Space/Ctrl+P unpin · Enter confirm)[/]");
+    AnsiConsole.MarkupLine($"[dim]Search[/]  [bold underline]Pinned ({pinned.Count})[/]  [dim]Selected ({selected.Count})[/]  [dim](Tab · Space/Ctrl+P unpin · Enter confirm)[/]");
     AnsiConsole.WriteLine();
 
     if (pinnedList.Count == 0)
@@ -383,7 +379,7 @@ internal static class FileSearchPrompt
       var isCursor = i == cursorIndex;
 
       var checkbox = isSelected ? "[green]+[/]" : "[dim]-[/]";
-      var arrow = isCursor ? "[blue]>[/]" : " ";
+      var arrow = isCursor ? "[darkorange]>[/]" : " ";
 
       if (isCursor)
       {
@@ -416,10 +412,9 @@ internal static class FileSearchPrompt
     HashSet<string> selected,
     HashSet<string> pinned,
     int cursorIndex,
-    int scrollOffset,
-    string tokenEstimate)
+    int scrollOffset)
   {
-    AnsiConsole.MarkupLine($"[dim]Search[/]  [dim]Pinned ({pinned.Count})[/]  [bold underline]Selected ({selected.Count})[/]  {tokenEstimate}  [dim](Tab · Space deselect · Enter confirm)[/]");
+    AnsiConsole.MarkupLine($"[dim]Search[/]  [dim]Pinned ({pinned.Count})[/]  [bold underline]Selected ({selected.Count})[/]  [dim](Tab · Space deselect · Enter confirm)[/]");
     AnsiConsole.WriteLine();
 
     if (selectedList.Count == 0)
@@ -437,7 +432,7 @@ internal static class FileSearchPrompt
       var isPinned = pinned.Contains(file.FullPath);
       var isCursor = i == cursorIndex;
 
-      var arrow = isCursor ? "[blue]>[/]" : " ";
+      var arrow = isCursor ? "[darkorange]>[/]" : " ";
       var pin = isPinned ? " [cyan]*[/]" : string.Empty;
 
       if (isCursor)
@@ -464,22 +459,6 @@ internal static class FileSearchPrompt
     }
 
     return 3 + (visibleEnd - scrollOffset) + extraLines;
-  }
-
-  private static string FormatTokenEstimate(IReadOnlyList<CsFile> files, HashSet<string> selected)
-  {
-    var totalBytes = files
-      .Where(f => selected.Contains(f.FullPath))
-      .Sum(f => f.SizeInBytes);
-
-    var tokens = totalBytes / 4;
-
-    return tokens switch
-    {
-      > 128_000 => $"[red]~{tokens:N0} tokens ⚠ over limit[/]",
-      > 100_000 => $"[yellow]~{tokens:N0} tokens[/]",
-      _ => $"[dim]~{tokens:N0} tokens[/]",
-    };
   }
 
   private static void ClearLines(int lineCount)

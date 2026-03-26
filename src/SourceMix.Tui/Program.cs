@@ -64,8 +64,19 @@ AnsiConsole.WriteLine();
 var options = OptionsPrompt.Show(preferences);
 AnsiConsole.WriteLine();
 
-var (selectedPromptText, updatedGlobalPreferences) = PromptSelector.Show(globalPreferences);
+var (selectedPromptText, selectedPromptKey, updatedGlobalPreferences) = PromptSelector.Show(globalPreferences, preferences.DefaultPromptKey);
 AnsiConsole.WriteLine();
+
+var skillsDirectory = PreferencesManager.GetSkillsDirectory();
+var allSkills = SkillScanner.GetAllSkills(fileSystem, skillsDirectory);
+var pinnedSkillKeys = new HashSet<string>(preferences.PinnedSkills, StringComparer.OrdinalIgnoreCase);
+SkillSelection skillSelection = new([], new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+if (allSkills.Count > 0)
+{
+  skillSelection = SkillSelectionPrompt.Show(allSkills, pinnedSkillKeys);
+  AnsiConsole.WriteLine();
+}
 
 IReadOnlyList<string> resolvedFiles = selectedPaths;
 IReadOnlySet<string> unresolvedTypeNames = new HashSet<string>();
@@ -115,7 +126,7 @@ if (options.IncludeCompiled && unresolvedTypeNames.Count > 0)
 
         foreach (var source in decompiled)
         {
-          decompiledSources.Add(SourceProcessor.Process(source));
+          decompiledSources.Add(SourceProcessor.Process(source, trim: options.Trim));
         }
       });
     });
@@ -127,11 +138,21 @@ if (options.IncludeCompiled && unresolvedTypeNames.Count > 0)
 }
 
 var outputFile = new FileInfo(options.OutputPath);
+var skillContents = skillSelection.SelectedKeys
+  .Select(k => allSkills.FirstOrDefault(s => string.Equals(s.Key, k, StringComparison.OrdinalIgnoreCase)))
+  .Where(s => s is not null)
+  .Select(s => fileSystem.File.ReadAllText(s!.FilePath))
+  .ToList();
 
 await using (var stream = outputFile.Open(FileMode.Create, FileAccess.Write, FileShare.None))
 await using (var writer = new StreamWriter(stream))
 {
-  OutputFormatter.Write(processedSources, decompiledSources, writer);
+  if (skillContents.Count > 0)
+  {
+    OutputFormatter.WriteSkills(skillContents, writer);
+  }
+
+  OutputFormatter.WriteCode(processedSources, decompiledSources, writer);
 
   if (selectedPromptText is not null)
   {
@@ -149,6 +170,8 @@ var updatedPreferences = new SolutionPreferences
   SolutionPath = solutionDirectory,
   PinnedFiles = pinnedRelativePaths,
   OutputPath = options.OutputPath,
+  DefaultPromptKey = selectedPromptKey,
+  PinnedSkills = [.. skillSelection.PinnedKeys.Order(StringComparer.OrdinalIgnoreCase)],
   Defaults = new PreferenceDefaults
   {
     Recursive = options.Recursive,

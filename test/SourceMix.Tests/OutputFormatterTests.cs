@@ -7,7 +7,7 @@ public sealed class OutputFormatterTests
   {
     using var writer = new StringWriter();
 
-    OutputFormatter.Write(["public class Foo { }"], [], writer);
+    OutputFormatter.WriteCode(["public class Foo { }"], [], writer);
     var output = writer.ToString();
 
     Assert.Contains("```csharp", output, StringComparison.Ordinal);
@@ -20,7 +20,7 @@ public sealed class OutputFormatterTests
   {
     using var writer = new StringWriter();
 
-    OutputFormatter.Write(["class A { }", "class B { }"], [], writer);
+    OutputFormatter.WriteCode(["class A { }", "class B { }"], [], writer);
     var output = writer.ToString();
 
     Assert.Contains("class A", output, StringComparison.Ordinal);
@@ -35,7 +35,7 @@ public sealed class OutputFormatterTests
   {
     using var writer = new StringWriter();
 
-    OutputFormatter.Write(["class A { }"], ["interface IFoo { }"], writer);
+    OutputFormatter.WriteCode(["class A { }"], ["interface IFoo { }"], writer);
     var output = writer.ToString();
 
     Assert.Contains("## Decompiled Dependencies", output, StringComparison.Ordinal);
@@ -47,7 +47,7 @@ public sealed class OutputFormatterTests
   {
     using var writer = new StringWriter();
 
-    OutputFormatter.Write([], [], writer);
+    OutputFormatter.WriteCode([], [], writer);
     var output = writer.ToString();
 
     Assert.Equal(string.Empty, output);
@@ -58,7 +58,7 @@ public sealed class OutputFormatterTests
   {
     using var writer = new StringWriter();
 
-    OutputFormatter.Write(["class A { }"], [], writer);
+    OutputFormatter.WriteCode(["class A { }"], [], writer);
     var output = writer.ToString();
 
     Assert.DoesNotContain("## Decompiled Dependencies", output, StringComparison.Ordinal);
@@ -69,7 +69,7 @@ public sealed class OutputFormatterTests
   {
     using var writer = new StringWriter();
 
-    OutputFormatter.Write([], ["interface IFoo { }"], writer);
+    OutputFormatter.WriteCode([], ["interface IFoo { }"], writer);
     var output = writer.ToString();
 
     Assert.Contains("## Decompiled Dependencies", output, StringComparison.Ordinal);

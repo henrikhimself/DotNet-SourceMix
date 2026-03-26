@@ -2,11 +2,27 @@ namespace Hj.SourceMix.Core;
 
 public static class OutputFormatter
 {
-  public static void Write(
+  public static void WriteSkills(IReadOnlyList<string> skillContents, TextWriter writer)
+  {
+    foreach (var content in skillContents)
+    {
+      writer.WriteLine(content);
+      writer.WriteLine();
+    }
+  }
+
+  public static void WriteCode(
     IReadOnlyList<string> processedSources,
     IReadOnlyList<string> decompiledSources,
     TextWriter writer)
   {
+    if (processedSources.Count > 0)
+    {
+      writer.WriteLine("---");
+      writer.WriteLine("# Source code");
+      writer.WriteLine();
+    }
+
     for (var i = 0; i < processedSources.Count; i++)
     {
       if (i > 0)
@@ -42,7 +58,7 @@ public static class OutputFormatter
   {
     writer.WriteLine();
     writer.WriteLine("---");
-    writer.WriteLine("## Instructions");
+    writer.WriteLine("# Instructions");
     writer.WriteLine();
     writer.WriteLine(promptText);
   }

@@ -8,21 +8,24 @@ internal static class PromptSelector
   private const string SkipLabel = "(none — skip prompt)";
   private const string NewLabel = "+ New custom prompt";
 
-  internal static (string? PromptText, GlobalPreferences Preferences) Show(GlobalPreferences globalPreferences)
+  internal static (string? PromptText, string? PromptKey, GlobalPreferences Preferences) Show(
+    GlobalPreferences globalPreferences,
+    string? defaultPromptKey)
   {
     AnsiConsole.MarkupLine("[bold]Select a prompt personality[/] [dim](optional)[/]");
     AnsiConsole.WriteLine();
 
-    var choices = BuildChoices(globalPreferences);
+    var (choices, labelToKey) = BuildChoices(globalPreferences, defaultPromptKey);
 
     var selection = AnsiConsole.Prompt(
       new SelectionPrompt<string>()
         .PageSize(12)
+        .HighlightStyle(new Style(Color.DarkOrange))
         .AddChoices([.. choices.Keys]));
 
     if (selection == SkipLabel)
     {
-      return (null, globalPreferences);
+      return (null, null, globalPreferences);
     }
 
     if (selection == NewLabel)
@@ -30,32 +33,57 @@ internal static class PromptSelector
       return CreateCustomPrompt(globalPreferences);
     }
 
-    return (choices[selection], globalPreferences);
+    return (choices[selection], labelToKey[selection], globalPreferences);
   }
 
-  private static Dictionary<string, string> BuildChoices(GlobalPreferences globalPreferences)
+  private static (Dictionary<string, string> Choices, Dictionary<string, string> LabelToKey) BuildChoices(
+    GlobalPreferences globalPreferences,
+    string? defaultPromptKey)
   {
+    var allEntries = new List<(string Label, string Text, string Key)>();
+
+    foreach (var (key, prompt) in BuiltInPrompts.All)
+    {
+      allEntries.Add(($"{prompt.DisplayName}  [[{key}]]", prompt.Text, key));
+    }
+
+    foreach (var (name, text) in globalPreferences.CustomPrompts)
+    {
+      allEntries.Add(($"{name}  [[custom]]", text, name));
+    }
+
+    if (defaultPromptKey is not null)
+    {
+      var defaultIndex = allEntries.FindIndex(e =>
+        string.Equals(e.Key, defaultPromptKey, StringComparison.OrdinalIgnoreCase));
+
+      if (defaultIndex > 0)
+      {
+        var defaultEntry = allEntries[defaultIndex];
+        allEntries.RemoveAt(defaultIndex);
+        allEntries.Insert(0, defaultEntry);
+      }
+    }
+
     var choices = new Dictionary<string, string>(StringComparer.Ordinal)
     {
       [SkipLabel] = string.Empty,
     };
 
-    foreach (var (key, prompt) in BuiltInPrompts.All)
-    {
-      choices[$"{prompt.DisplayName}  [[{key}]]"] = prompt.Text;
-    }
+    var labelToKey = new Dictionary<string, string>(StringComparer.Ordinal);
 
-    foreach (var (name, text) in globalPreferences.CustomPrompts)
+    foreach (var (label, text, key) in allEntries)
     {
-      choices[$"{name}  [[custom]]"] = text;
+      choices[label] = text;
+      labelToKey[label] = key;
     }
 
     choices[NewLabel] = string.Empty;
 
-    return choices;
+    return (choices, labelToKey);
   }
 
-  private static (string? PromptText, GlobalPreferences Preferences) CreateCustomPrompt(
+  private static (string? PromptText, string? PromptKey, GlobalPreferences Preferences) CreateCustomPrompt(
     GlobalPreferences globalPreferences)
   {
     AnsiConsole.WriteLine();
@@ -81,6 +109,6 @@ internal static class PromptSelector
 
     var updatedPreferences = globalPreferences with { CustomPrompts = updatedPrompts };
 
-    return (text.Trim(), updatedPreferences);
+    return (text.Trim(), name.Trim(), updatedPreferences);
   }
 }

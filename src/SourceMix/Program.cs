@@ -39,6 +39,12 @@ var promptOption = new Option<string?>("--prompt", "-p")
   Description = "Append a prompt personality to the output. Use a built-in key (unit-test, code-review, tech-docs, explain, debug, refactor, architecture) or provide custom text.",
 };
 
+var skillsOption = new Option<string[]>("--skills", "-s")
+{
+  Description = "One or more skill keys to prepend to the output. Each key is a subdirectory name in the skills config directory containing a SKILL.md file.",
+  Arity = ArgumentArity.ZeroOrMore,
+};
+
 var rootCommand = new RootCommand("Collects .NET C# source files into an LLM AI optimized Markdown file.")
 {
   filesArgument,
@@ -48,6 +54,7 @@ var rootCommand = new RootCommand("Collects .NET C# source files into an LLM AI 
   includeCompiledOption,
   trimOption,
   promptOption,
+  skillsOption,
 };
 
 rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancellationToken) =>
@@ -60,6 +67,7 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
   var includeCompiled = parseResult.GetValue(includeCompiledOption);
   var trim = parseResult.GetValue(trimOption);
   var promptValue = parseResult.GetValue(promptOption);
+  var skillKeys = parseResult.GetValue(skillsOption) ?? [];
 
   var baseDirectory = Directory.GetCurrentDirectory();
   var seedFiles = GlobResolver.Resolve(fileSystem, files, baseDirectory);
@@ -101,21 +109,53 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
 
       foreach (var source in decompiled)
       {
-        decompiledSources.Add(SourceProcessor.Process(source));
+        decompiledSources.Add(SourceProcessor.Process(source, trim: trim));
+      }
+    }
+  }
+
+  var skillContents = new List<string>();
+
+  if (skillKeys.Length > 0)
+  {
+    var skillsDirectory = PreferencesManager.GetSkillsDirectory();
+    var allSkills = SkillScanner.GetAllSkills(fileSystem, skillsDirectory);
+    var skillMap = allSkills.ToDictionary(s => s.Key, StringComparer.OrdinalIgnoreCase);
+
+    foreach (var key in skillKeys)
+    {
+      if (skillMap.TryGetValue(key, out var skill))
+      {
+        skillContents.Add(await fileSystem.File.ReadAllTextAsync(skill.FilePath, cancellationToken).ConfigureAwait(false));
+      }
+      else
+      {
+        Console.Error.WriteLine($"Warning: skill '{key}' not found in {skillsDirectory}");
       }
     }
   }
 
   if (output is null)
   {
-    OutputFormatter.Write(processedSources, decompiledSources, Console.Out);
+    if (skillContents.Count > 0)
+    {
+      OutputFormatter.WriteSkills(skillContents, Console.Out);
+    }
+
+    OutputFormatter.WriteCode(processedSources, decompiledSources, Console.Out);
     WritePromptIfSet(promptValue, Console.Out);
   }
   else
   {
     await using var stream = output.Open(FileMode.Create, FileAccess.Write, FileShare.None);
     await using var writer = new StreamWriter(stream);
-    OutputFormatter.Write(processedSources, decompiledSources, writer);
+
+    if (skillContents.Count > 0)
+    {
+      OutputFormatter.WriteSkills(skillContents, writer);
+    }
+
+    OutputFormatter.WriteCode(processedSources, decompiledSources, writer);
     WritePromptIfSet(promptValue, writer);
   }
 });

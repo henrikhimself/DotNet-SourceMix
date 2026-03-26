@@ -7,8 +7,12 @@ public static class BuiltInPrompts
   public static IReadOnlyDictionary<string, BuiltInPrompt> All { get; } =
     new Dictionary<string, BuiltInPrompt>(StringComparer.OrdinalIgnoreCase)
     {
-      ["unit-test"] = new(
-        "Write unit tests",
+      ["nunit-test"] = new(
+        "Write nUnit tests",
+        "Write comprehensive NUnit unit tests for every public type and member in the code above. Start with happy‑path scenarios, then add tests that break the happy path: null, empty, and boundary‑value inputs; cases that should throw expected exceptions; and other edge cases. Use Assert.That for assertions wherever possible. Organize tests with one test class per production class, and follow the Arrange / Act / Assert pattern, beginning each phase with a code comment."),
+
+      ["xunit-test"] = new(
+        "Write xUnit tests",
         "Write comprehensive xUnit unit tests for all public types and members in the code above. " +
         "Cover: happy-path scenarios, null/empty/boundary-value inputs, expected exceptions, and edge cases. " +
         "Prefer `[Theory]` with `[InlineData]` for parameterised inputs. " +
