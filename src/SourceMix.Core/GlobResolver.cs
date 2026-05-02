@@ -6,7 +6,7 @@ namespace Hj.SourceMix.Core;
 
 public static class GlobResolver
 {
-  private static readonly char[] GlobChars = ['*', '?', '{', '['];
+  private static readonly char[] _globChars = ['*', '?', '{', '['];
 
   public static IReadOnlyList<string> Resolve(IFileSystem fileSystem, IEnumerable<string> patterns, string baseDirectory)
   {
@@ -15,7 +15,7 @@ public static class GlobResolver
 
     foreach (var pattern in patterns)
     {
-      if (pattern.IndexOfAny(GlobChars) >= 0)
+      if (pattern.IndexOfAny(_globChars) >= 0)
       {
         var matcher = new Matcher();
         matcher.AddInclude(pattern);
@@ -60,6 +60,9 @@ public static class GlobResolver
 
     public override string FullName => _info.FullName;
 
+    public override GlobbingAbstractions.DirectoryInfoBase? ParentDirectory =>
+      _info.Parent is null ? null : new AbstractionsDirectoryInfo(_info.Parent);
+
     public override IEnumerable<GlobbingAbstractions.FileSystemInfoBase> EnumerateFileSystemInfos()
     {
       foreach (var dir in _info.EnumerateDirectories())
@@ -86,9 +89,6 @@ public static class GlobResolver
 
       return new AbstractionsFileInfo(fs.FileInfo.New(fs.Path.Combine(FullName, path)));
     }
-
-    public override GlobbingAbstractions.DirectoryInfoBase? ParentDirectory =>
-      _info.Parent is null ? null : new AbstractionsDirectoryInfo(_info.Parent);
   }
 
   private sealed class AbstractionsFileInfo : GlobbingAbstractions.FileInfoBase

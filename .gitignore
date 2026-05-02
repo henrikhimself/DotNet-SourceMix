@@ -1,3 +1,8 @@
+.attic
+tmp
+*.sarif
+.todo.db
+
 ## Visual Studio
 # User-specific files
 *.rsuser

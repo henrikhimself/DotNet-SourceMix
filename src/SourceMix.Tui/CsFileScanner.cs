@@ -58,5 +58,3 @@ internal sealed class CsFileScanner
     return false;
   }
 }
-
-internal sealed record CsFile(string FullPath, string RelativePath);

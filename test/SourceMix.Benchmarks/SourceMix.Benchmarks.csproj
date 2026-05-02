@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>false</IsPackable>
+    <OutputType>Exe</OutputType>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SourceMix.Core\SourceMix.Core.csproj" />
+    <ProjectReference Include="..\..\src\SourceMix.Tui\SourceMix.Tui.csproj" />
+  </ItemGroup>
+</Project>

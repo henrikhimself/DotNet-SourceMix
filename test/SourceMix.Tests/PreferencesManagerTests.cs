@@ -24,6 +24,28 @@ public sealed class PreferencesManagerTests
   }
 
   [Fact]
+  public void Load_InvalidJson_ReturnsDefaultPreferences()
+  {
+    var fs = new MockFileSystem();
+    var solutionDir = fs.Path.Combine(fs.Path.GetTempPath(), "MySolution");
+    fs.Directory.CreateDirectory(solutionDir);
+    var path = PreferencesManager.GetPreferencesPath(solutionDir);
+    fs.AddFile(path, new MockFileData("{ invalid json"));
+
+    var result = PreferencesManager.Load(fs, solutionDir);
+
+    Assert.Equal(solutionDir, result.SolutionPath);
+    Assert.Empty(result.PinnedFiles);
+    Assert.Empty(result.PinnedSkills);
+    Assert.Null(result.OutputPath);
+    Assert.False(result.Defaults.Recursive);
+    Assert.False(result.Defaults.LimitDepth);
+    Assert.Equal(3, result.Defaults.MaxDepth);
+    Assert.False(result.Defaults.IncludeCompiled);
+    Assert.False(result.Defaults.Trim);
+  }
+
+  [Fact]
   public void SaveAndLoad_RoundTrip_PreservesAllValues()
   {
     var fs = new MockFileSystem();
@@ -182,5 +204,17 @@ public sealed class PreferencesManagerTests
     var loaded = PreferencesManager.Load(fs, solutionDir);
 
     Assert.Equal(["src/New.cs"], loaded.PinnedFiles);
+  }
+
+  [Fact]
+  public void LoadGlobal_InvalidJson_ReturnsDefaultPreferences()
+  {
+    var fs = new MockFileSystem();
+    var path = PreferencesManager.GetGlobalPreferencesPath();
+    fs.AddFile(path, new MockFileData("{ invalid json"));
+
+    var result = PreferencesManager.LoadGlobal(fs);
+
+    Assert.Empty(result.CustomPrompts);
   }
 }

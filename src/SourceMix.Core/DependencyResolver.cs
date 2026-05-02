@@ -13,19 +13,17 @@ public static class DependencyResolver
     string solutionDirectory,
     int maxDepth)
   {
-    var allCsFiles = fileSystem.Directory.GetFiles(solutionDirectory, "*.cs", SearchOption.AllDirectories);
+    // Phase 1 — File discovery
+    var allCsFiles = fileSystem.Directory
+      .EnumerateFiles(solutionDirectory, "*.cs", SearchOption.AllDirectories)
+      .Select(fileSystem.Path.GetFullPath)
+      .Where(f => !IsExcluded(f))
+      .ToList();
 
-    var fileIndex = new Dictionary<string, SyntaxTree>(StringComparer.OrdinalIgnoreCase);
-    foreach (var file in allCsFiles)
-    {
-      var fullPath = fileSystem.Path.GetFullPath(file);
-      var source = fileSystem.File.ReadAllText(fullPath);
-      var tree = CSharpSyntaxTree.ParseText(source, path: fullPath);
-      fileIndex[fullPath] = tree;
-    }
+    // Phase 2 — Type index (parse → extract → discard tree)
+    var typeToFiles = BuildTypeToFileIndex(fileSystem, allCsFiles);
 
-    var typeToFiles = BuildTypeToFileMap(fileIndex);
-
+    // Phase 3 — BFS traversal (lazy parse with cache)
     var included = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     var unresolvedTypeNames = new HashSet<string>(StringComparer.Ordinal);
     var currentLevel = new List<string>();
@@ -40,15 +38,19 @@ public static class DependencyResolver
       }
     }
 
+    var syntaxCache = new Dictionary<string, SyntaxTree>(StringComparer.OrdinalIgnoreCase);
+
     for (var depth = 0; depth < maxDepth && currentLevel.Count > 0; depth++)
     {
       var nextLevel = new List<string>();
 
       foreach (var filePath in currentLevel)
       {
-        if (!fileIndex.TryGetValue(filePath, out var tree))
+        if (!syntaxCache.TryGetValue(filePath, out var tree))
         {
-          continue;
+          var source = fileSystem.File.ReadAllText(filePath);
+          tree = CSharpSyntaxTree.ParseText(source, path: filePath);
+          syntaxCache[filePath] = tree;
         }
 
         var referencedNames = ExtractReferencedTypeNames(tree);
@@ -87,13 +89,16 @@ public static class DependencyResolver
     return new DependencyResult(files, unresolvedTypeNames);
   }
 
-  private static Dictionary<string, List<(string FilePath, string? Namespace)>> BuildTypeToFileMap(
-    Dictionary<string, SyntaxTree> fileIndex)
+  private static Dictionary<string, List<(string FilePath, string? Namespace)>> BuildTypeToFileIndex(
+    IFileSystem fileSystem,
+    IEnumerable<string> filePaths)
   {
     var map = new Dictionary<string, List<(string FilePath, string? Namespace)>>(StringComparer.Ordinal);
 
-    foreach (var (filePath, tree) in fileIndex)
+    foreach (var filePath in filePaths)
     {
+      var source = fileSystem.File.ReadAllText(filePath);
+      var tree = CSharpSyntaxTree.ParseText(source, path: filePath);
       var root = tree.GetRoot();
 
       foreach (var declaration in root.DescendantNodes())
@@ -226,8 +231,20 @@ public static class DependencyResolver
       names.Add(name);
     }
   }
-}
 
-public sealed record DependencyResult(
-  IReadOnlyList<string> Files,
-  IReadOnlySet<string> UnresolvedTypeNames);
+  private static bool IsExcluded(string fullPath)
+  {
+    var parts = fullPath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+    foreach (var part in parts)
+    {
+      if (part.Equals("bin", StringComparison.OrdinalIgnoreCase)
+        || part.Equals("obj", StringComparison.OrdinalIgnoreCase))
+      {
+        return true;
+      }
+    }
+
+    return false;
+  }
+}

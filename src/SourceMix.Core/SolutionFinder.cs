@@ -4,7 +4,7 @@ namespace Hj.SourceMix.Core;
 
 public static class SolutionFinder
 {
-  private static readonly string[] SolutionExtensions = [".slnx", ".sln"];
+  private static readonly string[] _solutionExtensions = [".slnx", ".sln"];
 
   public static string? FindSolutionDirectory(IFileSystem fileSystem, string startDirectory)
   {
@@ -12,7 +12,7 @@ public static class SolutionFinder
 
     while (directory is not null)
     {
-      foreach (var extension in SolutionExtensions)
+      foreach (var extension in _solutionExtensions)
       {
         if (directory.GetFiles($"*{extension}").Length > 0)
         {

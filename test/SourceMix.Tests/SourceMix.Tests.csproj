@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SourceMix.Core\SourceMix.Core.csproj" />
+    <ProjectReference Include="..\..\src\SourceMix\SourceMix.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -32,6 +33,7 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="Hj.SourceMix" />
     <Using Include="Hj.SourceMix.Core" />
   </ItemGroup>
 

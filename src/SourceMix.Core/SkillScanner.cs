@@ -2,8 +2,6 @@ using System.IO.Abstractions;
 
 namespace Hj.SourceMix.Core;
 
-public sealed record Skill(string Key, string FilePath);
-
 public static class SkillScanner
 {
   private const string SkillFileName = "SKILL.md";

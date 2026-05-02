@@ -2,15 +2,16 @@ using Spectre.Console;
 
 namespace Hj.SourceMix.Tui;
 
-internal sealed record FileSelection(
-  IReadOnlyList<string> SelectedPaths,
-  IReadOnlySet<string> PinnedPaths);
-
 internal static class FileSearchPrompt
 {
   private const int MaxVisible = 20;
 
-  private enum ViewMode { Search, Pinned, Selected }
+  private enum ViewMode
+  {
+    Search,
+    Pinned,
+    Selected,
+  }
 
   internal static FileSelection Show(IReadOnlyList<CsFile> files, IReadOnlySet<string> pinnedPaths)
   {
@@ -26,35 +27,69 @@ internal static class FileSearchPrompt
     var selectedCursor = 0;
     var selectedScroll = 0;
 
+    var lastSearch = (string?)null;
+    var pinnedVersion = 0;
+    var lastPinnedVersion = -1;
+    var selectedVersion = 0;
+    var lastSelectedVersion = -1;
+    IReadOnlyList<CsFile> filtered = [];
+    List<CsFile> pinnedList = [];
+    List<CsFile> selectedList = [];
+
+    using var frameBuffer = new StringWriter();
+    var frameConsole = AnsiConsole.Create(new AnsiConsoleSettings
+    {
+      Ansi = AnsiSupport.Yes,
+      ColorSystem = ColorSystemSupport.TrueColor,
+      Out = new AnsiConsoleOutput(frameBuffer),
+    });
+
     while (true)
     {
-      var filtered = Filter(files, search);
-
-      if (searchCursor >= filtered.Count && filtered.Count > 0)
+      if (search != lastSearch)
       {
-        searchCursor = filtered.Count - 1;
+        var source = lastSearch is not null && search.StartsWith(lastSearch, StringComparison.OrdinalIgnoreCase)
+          ? filtered
+          : (IReadOnlyList<CsFile>)files;
+        filtered = Filter(source, search);
+        lastSearch = search;
+
+        if (searchCursor >= filtered.Count && filtered.Count > 0)
+        {
+          searchCursor = filtered.Count - 1;
+        }
       }
 
-      var pinnedList = GetPinnedList(files, pinned);
-
-      if (pinnedCursor >= pinnedList.Count && pinnedList.Count > 0)
+      if (pinnedVersion != lastPinnedVersion)
       {
-        pinnedCursor = pinnedList.Count - 1;
+        pinnedList = GetPinnedList(files, pinned);
+        lastPinnedVersion = pinnedVersion;
+
+        if (pinnedCursor >= pinnedList.Count && pinnedList.Count > 0)
+        {
+          pinnedCursor = pinnedList.Count - 1;
+        }
       }
 
-      var selectedList = GetSelectedList(files, selected);
-
-      if (selectedCursor >= selectedList.Count && selectedList.Count > 0)
+      if (selectedVersion != lastSelectedVersion)
       {
-        selectedCursor = selectedList.Count - 1;
+        selectedList = GetSelectedList(files, selected);
+        lastSelectedVersion = selectedVersion;
+
+        if (selectedCursor >= selectedList.Count && selectedList.Count > 0)
+        {
+          selectedCursor = selectedList.Count - 1;
+        }
       }
 
+      frameBuffer.GetStringBuilder().Clear();
       var renderedLines = view switch
       {
-        ViewMode.Search => RenderSearch(search, filtered, selected, pinned, searchCursor, searchScroll),
-        ViewMode.Pinned => RenderPinned(pinnedList, selected, pinned, pinnedCursor, pinnedScroll),
-        _ => RenderSelected(selectedList, selected, pinned, selectedCursor, selectedScroll),
+        ViewMode.Search => RenderSearch(frameConsole, search, filtered, selected, pinned, searchCursor, searchScroll),
+        ViewMode.Pinned => RenderPinned(frameConsole, pinnedList, selected, pinned, pinnedCursor, pinnedScroll),
+        _ => RenderSelected(frameConsole, selectedList, selected, pinned, selectedCursor, selectedScroll),
       };
+      Console.Write(frameBuffer.GetStringBuilder());
 
       var key = Console.ReadKey(intercept: true);
 
@@ -170,6 +205,8 @@ internal static class FileSearchPrompt
               {
                 selected.Add(file.FullPath);
               }
+
+              selectedVersion++;
             }
           }
           else if (view == ViewMode.Pinned)
@@ -179,6 +216,8 @@ internal static class FileSearchPrompt
               var file = pinnedList[pinnedCursor];
               pinned.Remove(file.FullPath);
               selected.Remove(file.FullPath);
+              pinnedVersion++;
+              selectedVersion++;
             }
           }
           else
@@ -188,6 +227,8 @@ internal static class FileSearchPrompt
               var file = selectedList[selectedCursor];
               pinned.Remove(file.FullPath);
               selected.Remove(file.FullPath);
+              pinnedVersion++;
+              selectedVersion++;
             }
           }
 
@@ -238,6 +279,9 @@ internal static class FileSearchPrompt
                 pinned.Add(file.FullPath);
                 selected.Add(file.FullPath);
               }
+
+              pinnedVersion++;
+              selectedVersion++;
             }
           }
           else if (view == ViewMode.Pinned)
@@ -247,6 +291,8 @@ internal static class FileSearchPrompt
               var file = pinnedList[pinnedCursor];
               pinned.Remove(file.FullPath);
               selected.Remove(file.FullPath);
+              pinnedVersion++;
+              selectedVersion++;
             }
           }
 
@@ -272,9 +318,17 @@ internal static class FileSearchPrompt
       return files;
     }
 
-    return files
-      .Where(f => f.RelativePath.Contains(search, StringComparison.OrdinalIgnoreCase))
-      .ToList();
+    var result = new List<CsFile>();
+
+    foreach (var file in files)
+    {
+      if (file.RelativePath.Contains(search, StringComparison.OrdinalIgnoreCase))
+      {
+        result.Add(file);
+      }
+    }
+
+    return result;
   }
 
   private static List<CsFile> GetPinnedList(IReadOnlyList<CsFile> files, HashSet<string> pinned)
@@ -294,6 +348,7 @@ internal static class FileSearchPrompt
   }
 
   private static int RenderSearch(
+    IAnsiConsole console,
     string search,
     IReadOnlyList<CsFile> filtered,
     HashSet<string> selected,
@@ -304,9 +359,9 @@ internal static class FileSearchPrompt
     var searchDisplay = string.IsNullOrEmpty(search) ? "[dim]<type to filter>[/]" : $"[yellow]{search}[/]";
     var matchCount = filtered.Count == 1 ? "1 match" : $"{filtered.Count} matches";
 
-    AnsiConsole.MarkupLine($"[bold underline]Search[/]  [dim]Pinned ({pinned.Count})[/]  [dim]Selected ({selected.Count})[/]  [dim](Tab · Space select · Ctrl+P pin · Ctrl+U clear · Enter confirm)[/]");
-    AnsiConsole.MarkupLine($"  Filter: {searchDisplay}  [dim]({matchCount})[/]");
-    AnsiConsole.WriteLine();
+    console.MarkupLine($"[bold underline]Search[/]  [dim]Pinned ({pinned.Count})[/]  [dim]Selected ({selected.Count})[/]  [dim](Tab · Space select · Ctrl+P pin · Ctrl+U clear · Enter confirm)[/]");
+    console.MarkupLine($"  Filter: {searchDisplay}  [dim]({matchCount})[/]");
+    console.WriteLine();
 
     var visibleEnd = Math.Min(scrollOffset + MaxVisible, filtered.Count);
 
@@ -323,11 +378,11 @@ internal static class FileSearchPrompt
 
       if (isCursor)
       {
-        AnsiConsole.MarkupLine($" {arrow} {checkbox} [bold]{Markup.Escape(file.RelativePath)}[/]{pin}");
+        console.MarkupLine($" {arrow} {checkbox} [bold]{Markup.Escape(file.RelativePath)}[/]{pin}");
       }
       else
       {
-        AnsiConsole.MarkupLine($" {arrow} {checkbox} [dim]{Markup.Escape(file.RelativePath)}[/]{pin}");
+        console.MarkupLine($" {arrow} {checkbox} [dim]{Markup.Escape(file.RelativePath)}[/]{pin}");
       }
     }
 
@@ -339,35 +394,36 @@ internal static class FileSearchPrompt
 
       if (remaining > 0)
       {
-        AnsiConsole.MarkupLine($"  [dim]... {remaining} more (scroll down)[/]");
+        console.MarkupLine($"  [dim]... {remaining} more (scroll down)[/]");
         extraLines++;
       }
     }
 
     if (filtered.Count == 0)
     {
-      AnsiConsole.MarkupLine("  [dim]No files match.[/]");
+      console.MarkupLine("  [dim]No files match.[/]");
       extraLines++;
     }
 
-    return 4 + (visibleEnd - scrollOffset) + extraLines;
+    return 3 + (visibleEnd - scrollOffset) + extraLines;
   }
 
   private static int RenderPinned(
+    IAnsiConsole console,
     List<CsFile> pinnedList,
     HashSet<string> selected,
     HashSet<string> pinned,
     int cursorIndex,
     int scrollOffset)
   {
-    AnsiConsole.MarkupLine($"[dim]Search[/]  [bold underline]Pinned ({pinned.Count})[/]  [dim]Selected ({selected.Count})[/]  [dim](Tab · Space/Ctrl+P unpin · Enter confirm)[/]");
-    AnsiConsole.WriteLine();
+    console.MarkupLine($"[dim]Search[/]  [bold underline]Pinned ({pinned.Count})[/]  [dim]Selected ({selected.Count})[/]  [dim](Tab · Space/Ctrl+P unpin · Enter confirm)[/]");
+    console.WriteLine();
 
     if (pinnedList.Count == 0)
     {
-      AnsiConsole.MarkupLine("  [dim]No pinned files. Press Ctrl+P on a file in Search to pin it.[/]");
+      console.MarkupLine("  [dim]No pinned files. Press Ctrl+P on a file in Search to pin it.[/]");
 
-      return 4;
+      return 3;
     }
 
     var visibleEnd = Math.Min(scrollOffset + MaxVisible, pinnedList.Count);
@@ -383,11 +439,11 @@ internal static class FileSearchPrompt
 
       if (isCursor)
       {
-        AnsiConsole.MarkupLine($" {arrow} {checkbox} [cyan]*[/] [bold]{Markup.Escape(file.RelativePath)}[/]");
+        console.MarkupLine($" {arrow} {checkbox} [cyan]*[/] [bold]{Markup.Escape(file.RelativePath)}[/]");
       }
       else
       {
-        AnsiConsole.MarkupLine($" {arrow} {checkbox} [cyan]*[/] [dim]{Markup.Escape(file.RelativePath)}[/]");
+        console.MarkupLine($" {arrow} {checkbox} [cyan]*[/] [dim]{Markup.Escape(file.RelativePath)}[/]");
       }
     }
 
@@ -399,29 +455,30 @@ internal static class FileSearchPrompt
 
       if (remaining > 0)
       {
-        AnsiConsole.MarkupLine($"  [dim]... {remaining} more (scroll down)[/]");
+        console.MarkupLine($"  [dim]... {remaining} more (scroll down)[/]");
         extraLines++;
       }
     }
 
-    return 3 + (visibleEnd - scrollOffset) + extraLines;
+    return 2 + (visibleEnd - scrollOffset) + extraLines;
   }
 
   private static int RenderSelected(
+    IAnsiConsole console,
     List<CsFile> selectedList,
     HashSet<string> selected,
     HashSet<string> pinned,
     int cursorIndex,
     int scrollOffset)
   {
-    AnsiConsole.MarkupLine($"[dim]Search[/]  [dim]Pinned ({pinned.Count})[/]  [bold underline]Selected ({selected.Count})[/]  [dim](Tab · Space deselect · Enter confirm)[/]");
-    AnsiConsole.WriteLine();
+    console.MarkupLine($"[dim]Search[/]  [dim]Pinned ({pinned.Count})[/]  [bold underline]Selected ({selected.Count})[/]  [dim](Tab · Space deselect · Enter confirm)[/]");
+    console.WriteLine();
 
     if (selectedList.Count == 0)
     {
-      AnsiConsole.MarkupLine("  [dim]No files selected. Press Space on a file in Search to select it.[/]");
+      console.MarkupLine("  [dim]No files selected. Press Space on a file in Search to select it.[/]");
 
-      return 4;
+      return 3;
     }
 
     var visibleEnd = Math.Min(scrollOffset + MaxVisible, selectedList.Count);
@@ -437,11 +494,11 @@ internal static class FileSearchPrompt
 
       if (isCursor)
       {
-        AnsiConsole.MarkupLine($" {arrow} [green]+[/] [bold]{Markup.Escape(file.RelativePath)}[/]{pin}");
+        console.MarkupLine($" {arrow} [green]+[/] [bold]{Markup.Escape(file.RelativePath)}[/]{pin}");
       }
       else
       {
-        AnsiConsole.MarkupLine($" {arrow} [green]+[/] [dim]{Markup.Escape(file.RelativePath)}[/]{pin}");
+        console.MarkupLine($" {arrow} [green]+[/] [dim]{Markup.Escape(file.RelativePath)}[/]{pin}");
       }
     }
 
@@ -453,26 +510,21 @@ internal static class FileSearchPrompt
 
       if (remaining > 0)
       {
-        AnsiConsole.MarkupLine($"  [dim]... {remaining} more (scroll down)[/]");
+        console.MarkupLine($"  [dim]... {remaining} more (scroll down)[/]");
         extraLines++;
       }
     }
 
-    return 3 + (visibleEnd - scrollOffset) + extraLines;
+    return 2 + (visibleEnd - scrollOffset) + extraLines;
   }
 
   private static void ClearLines(int lineCount)
   {
-    for (var i = 0; i < lineCount; i++)
+    if (lineCount <= 0)
     {
-      Console.CursorLeft = 0;
-      Console.Write(new string(' ', Console.WindowWidth > 0 ? Console.WindowWidth : 80));
-      Console.CursorLeft = 0;
-
-      if (i < lineCount - 1)
-      {
-        Console.CursorTop--;
-      }
+      return;
     }
+
+    Console.Write($"\x1b[{lineCount}A\x1b[0J");
   }
 }

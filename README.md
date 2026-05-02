@@ -1,32 +1,119 @@
 # Source Mix
 
-A CLI and interactive TUI for collecting multiple .NET C# source files into an LLM AI optimized file that can be uploaded to aid with coding tasks on existing code bases.
+SourceMix turns selected C# source files into a single Markdown context file that is easier to hand to an LLM. You can use it in two ways from the same installed dotnet tool:
 
-## Interactive TUI
+- **CLI mode** for scripted or repeatable runs
+- **TUI mode** for interactive file picking and option selection
 
-Run the TUI from any directory containing a `.sln` or `.slnx` solution file:
+The tool can include just the files you select, or expand outward to referenced source types, optional decompiled dependency types, reusable skills, and a final prompt block.
+
+## Install
+
+Install the tool globally from NuGet:
 
 ```bash
-sourcemix-tui
+dotnet tool install --global SourceMix
+```
+
+After that, use the `sourcemix` command.
+
+Update an existing installation:
+
+```bash
+dotnet tool update --global SourceMix
+```
+
+Uninstall it:
+
+```bash
+dotnet tool uninstall --global SourceMix
+```
+
+## Quick start
+
+Use the interactive experience when you want help choosing files:
+
+```bash
+sourcemix tui
+```
+
+Use the CLI when you already know the files or patterns you want:
+
+```bash
+sourcemix "src/**/*.cs" -o context.md
+```
+
+## TUI usage
+
+Run the TUI from any directory containing a `.sln` or `.slnx` file:
+
+```bash
+sourcemix tui
 ```
 
 ### Wizard flow
 
-1. **Search & select files** — type to filter `.cs` files by name in real-time, navigate with `↑↓`, toggle selection with `Space`, pin a file with `Ctrl+P` (select + mark for next run), confirm with `Enter`. Press `Tab` to switch to the Pinned view. Pinned files from previous runs are preselected and marked with `*`.
-2. **Pinned files view** — press `Tab` to switch to a list of all pinned files. Use `↑↓` to navigate and `Space` or `Ctrl+P` to unpin (and deselect) individual files. Press `Tab` again to go to the Selected view.
-3. **Selected files view** — press `Tab` to see all currently selected files. Use `Space` to deselect. Press `Tab` again to return to search.
-4. **Configure options** — choose recursive dependency resolution, recursion depth limit, whether to decompile types from compiled assemblies, and whether to trim method bodies from dependency files (keep signatures only). Defaults are loaded from saved preferences.
-5. **Select prompt** — optionally append a built-in prompt personality (`unit-test`, `code-review`, `tech-docs`, `explain`, `debug`, `refactor`, `architecture`) or a saved custom prompt to the output. The last-used prompt is preselected. Custom prompts are shared across all solutions.
-6. **Select skills** — optionally prepend one or more skill instruction files to the output. Skills are Markdown files stored in the skills config directory. Multiple skills can be selected; pin with `Ctrl+P` to preselect on the next run. This step is skipped automatically when no skills exist.
-7. **Generate** — output is written to `~/sourcemix.md` by default (configurable). Preferences are auto-saved for the next run.
+1. **Search and select files** — type to filter `.cs` files by name in real time, move with `↑↓`, toggle with `Space`, pin with `Ctrl+P`, confirm with `Enter`, and switch views with `Tab`.
+2. **Configure options** — choose recursive dependency resolution, optional depth limiting, decompilation of compiled types, and whether dependency method bodies should be trimmed.
+3. **Select prompt** — optionally append a built-in or custom prompt to the generated output.
+4. **Select skills** — optionally prepend one or more `SKILL.md` instruction files.
+5. **Generate** — write the final Markdown output and persist your preferences for the next run.
 
-> **Note:** The `--include-compiled` option requires a prior `dotnet build` so assemblies exist in the `bin/` directories.
+> **Note:** `--include-compiled` depends on assemblies that already exist in `bin/`, so run `dotnet build` first.
 
-### Preferences
+## CLI usage
 
-SourceMix saves per-solution preferences automatically after each TUI run. Preferences include pinned files, pinned skills, output path, last-used prompt, and default option values.
+```bash
+sourcemix [<files>...] [--output <path>] [--recursive] [--depth <n>] [--include-compiled]
+```
 
-**Config file location:**
+### Arguments
+
+- `<files>` — one or more file paths or glob patterns such as `src/**/*.cs`
+
+### Options
+
+- `-o`, `--output <path>` — write output to a file instead of stdout
+- `-r`, `--recursive` — include files that define referenced types
+- `-d`, `--depth <n>` — limit recursion depth when `--recursive` is used
+- `-c`, `--include-compiled` — decompile unresolved referenced interfaces/models from compiled assemblies; requires `--recursive`
+- `-t`, `--trim` — trim dependency method bodies while keeping signatures; requires `--recursive`
+- `-p`, `--prompt <name-or-text>` — append a built-in prompt key or custom prompt text
+- `-s`, `--skills <key>...` — prepend one or more skills by key
+
+### Built-in prompts
+
+- `nunit-test`
+- `xunit-test`
+- `code-review`
+- `tech-docs`
+- `explain`
+- `debug`
+- `refactor`
+- `architecture`
+
+### Examples
+
+```bash
+# Write a context file from a glob
+sourcemix "src/**/*.cs" -o context.md
+
+# Print selected files to stdout
+sourcemix Foo.cs Bar.cs Baz.cs
+
+# Pull in referenced source types and decompiled unresolved types
+sourcemix MyService.cs -r -c -o context.md
+
+# Trim dependency bodies and append an xUnit-focused prompt
+sourcemix MyService.cs -r -t --prompt xunit-test -o context.md
+
+# Add skills plus a code review prompt
+sourcemix MyService.cs -r -t --skills unit-test-style architecture-rules --prompt code-review -o context.md
+```
+
+## Preferences
+
+SourceMix stores per-solution preferences after TUI runs, including pinned files, pinned skills, output path, last-used prompt, and default options.
 
 | Platform | Location |
 |---|---|
@@ -34,41 +121,7 @@ SourceMix saves per-solution preferences automatically after each TUI run. Prefe
 | Linux | `~/.config/sourcemix/sourcemix-<hash>.json` |
 | macOS | `~/.config/sourcemix/sourcemix-<hash>.json` |
 
-Each solution gets its own preferences file, identified by a hash of the solution directory path.
-
-**Schema:**
-
-```json
-{
-  "solutionPath": "/path/to/solution",
-  "pinnedFiles": [
-    "src/MyProject/Service.cs",
-    "src/MyProject/Model.cs"
-  ],
-  "pinnedSkills": [
-    "unit-test-style"
-  ],
-  "defaultPromptKey": "code-review",
-  "outputPath": "/custom/output.md",
-  "defaults": {
-    "recursive": true,
-    "limitDepth": false,
-    "maxDepth": 3,
-    "includeCompiled": false,
-    "trim": false
-  }
-}
-```
-
-- **pinnedFiles** — relative paths from the solution root; explicitly pinned with `Ctrl+P` in the file picker, preselected on the next run
-- **pinnedSkills** — skill keys (directory names) pinned with `Ctrl+P` in the skill selector, preselected on the next run
-- **defaultPromptKey** — key of the last-used prompt; that prompt is highlighted first in the selector on the next run
-- **outputPath** — overrides the default `~/sourcemix.md`; omit to use the default
-- **defaults** — default answers for each wizard prompt; `trim` strips method bodies from dependency files
-
-### Global preferences
-
-Custom prompts are stored in a single global file shared across all solutions:
+Global custom prompts are stored separately:
 
 | Platform | Location |
 |---|---|
@@ -76,125 +129,85 @@ Custom prompts are stored in a single global file shared across all solutions:
 | Linux | `~/.config/sourcemix/sourcemix-global.json` |
 | macOS | `~/.config/sourcemix/sourcemix-global.json` |
 
-**Schema:**
+## Skills
 
-```json
-{
-  "customPrompts": {
-    "our-review": "Review against our team coding standards...",
-    "sprint-demo": "Summarise changes suitable for a sprint review demo..."
-  }
-}
-```
-
-### Skills
-
-Skills are reusable Markdown instruction files that are prepended to the output before the code blocks and prompt. Each skill lives in its own subdirectory of the skills config directory and must contain a `SKILL.md` file. The directory name is the skill key.
-
-**Skills directory:**
+Skills are reusable Markdown instructions inserted before the collected code. Each skill lives in its own directory and must contain a `SKILL.md` file. A skill file cannot reference other files.
 
 | Platform | Location |
 |---|---|
 | Windows | `%APPDATA%\sourcemix\skills\` |
-| Linux | `~/.config/sourcemix/skills\` |
-| macOS | `~/.config/sourcemix/skills\` |
+| Linux | `~/.config/sourcemix/skills/` |
+| macOS | `~/.config/sourcemix/skills/` |
 
-**Example structure:**
+Example:
 
-```
+```text
 ~/.config/sourcemix/skills/
   unit-test-style/
-    SKILL.md      ← skill instructions for this project's unit test conventions
+    SKILL.md
   architecture-rules/
-    SKILL.md      ← architecture and naming rules
+    SKILL.md
 ```
 
-**Output order** when skills, code, and a prompt are all present:
+## Local development
 
-1. Skill content (raw `SKILL.md` text, one blank line after each)
-2. Code blocks (selected source files and any decompiled dependencies)
-3. Prompt instructions (`## Instructions` section)
-
-## CLI Usage
+Restore tools and dependencies:
 
 ```bash
-sourcemix [<files>...] [--output <path>] [--recursive] [--depth <n>] [--include-compiled]
+dotnet tool restore
+./scripts/restore.bash
 ```
 
-**Arguments:**
-
-- `<files>` — one or more file paths or glob patterns (e.g. `src/**/*.cs`)
-
-**Options:**
-
-- `-o`, `--output <path>` — write output to a file instead of stdout
-- `-r`, `--recursive` — recursively include files that define types referenced by the specified files
-- `-d`, `--depth <n>` — maximum recursion depth when `--recursive` is used (defaults to no limit)
-- `-c`, `--include-compiled` — decompile interfaces and simple model types from compiled assemblies in `bin/` for types not found in source; requires `--recursive` and a prior `dotnet build`
-- `-t`, `--trim` — strip method bodies from dependency files, keeping type signatures only; requires `--recursive`
-- `-p`, `--prompt <name-or-text>` — append a prompt personality to the output; use a built-in key (`unit-test`, `code-review`, `tech-docs`, `explain`, `debug`, `refactor`, `architecture`) or provide custom text
-- `-s`, `--skills <key>...` — prepend one or more skill instruction files to the output; each value is a skill key (subdirectory name under the skills config directory)
-
-**Examples:**
+Build with the repository checks:
 
 ```bash
-# Collect all C# files in src/ and write to a Markdown file
-sourcemix "src/**/*.cs" -o context.md
-
-# Collect specific files and print to stdout
-sourcemix Foo.cs Bar.cs Baz.cs
-
-# Recursively include referenced source types and decompile unresolved NuGet types
-sourcemix MyService.cs -r -c -o context.md
-
-# Trim dependency method bodies and append a unit-test prompt
-sourcemix MyService.cs -r -t --prompt unit-test -o context.md
-
-# Prepend skills, trim dependencies, and append a code-review prompt
-sourcemix MyService.cs -r -t --skills unit-test-style architecture-rules --prompt code-review -o context.md
+./scripts/build.bash
 ```
 
-## Publish as a self-contained executable
-
-A self-contained executable bundles the .NET runtime so the target machine does not need .NET installed.
-
-Replace `<RID>` with the target platform:
-
-| Platform | RID |
-|---|---|
-| Windows x64 | `win-x64` |
-| macOS x64 (Intel) | `osx-x64` |
-| macOS ARM64 (Apple Silicon) | `osx-arm64` |
-| Linux x64 | `linux-x64` |
-| Linux ARM64 | `linux-arm64` |
-
-**CLI:**
+Run the tests:
 
 ```bash
-dotnet publish src/SourceMix -c Release -r <RID> --self-contained true -p:PublishSingleFile=true
+./scripts/test.bash
 ```
 
-**TUI:**
+Run the benchmarks to measure performance and detect regressions:
 
 ```bash
-dotnet publish src/SourceMix.Tui -c Release -r <RID> --self-contained true -p:PublishSingleFile=true
+./scripts/benchmark.bash
 ```
 
-The executables are written to `src/<Project>/bin/Release/net10.0/<RID>/publish/`.
+Results are saved to `tmp/benchmark-latest.md` after each run. The previous run is kept as `tmp/benchmark-previous.md` for comparison.
 
-> **Note:** Avoid `-p:PublishTrimmed=true`. The Roslyn and ICSharpCode.Decompiler libraries used for dependency resolution and decompilation are not trim-safe and will fail at runtime when trimmed.
-
-**Example — macOS Apple Silicon:**
+Create the release package:
 
 ```bash
-dotnet publish src/SourceMix -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true
-dotnet publish src/SourceMix.Tui -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true
+./scripts/pack.bash
 ```
 
-Copy the produced binaries to a directory on your `PATH` to use them as global commands:
+## Pack and publish
+
+Create the NuGet package:
 
 ```bash
-sudo cp src/SourceMix/bin/Release/net10.0/osx-arm64/publish/SourceMix /usr/local/bin/sourcemix
-sudo cp src/SourceMix.Tui/bin/Release/net10.0/osx-arm64/publish/SourceMix.Tui /usr/local/bin/sourcemix-tui
+./scripts/pack.bash
 ```
 
+The package is written to:
+
+```text
+src/SourceMix/bin/Release/SourceMix.<version>.nupkg
+```
+
+Install that package locally for validation:
+
+```bash
+dotnet tool install --global --add-source ./src/SourceMix/bin/Release SourceMix
+```
+
+Publish it to NuGet:
+
+```bash
+dotnet nuget push src/SourceMix/bin/Release/SourceMix.<version>.nupkg --source https://api.nuget.org/v3/index.json --api-key <api-key>
+```
+
+`pack.bash` only creates the Release package. Run `./scripts/build.bash` and `./scripts/test.bash` separately as your validation steps before publishing.

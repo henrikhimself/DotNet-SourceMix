@@ -32,7 +32,7 @@ public static class SourceProcessor
 
     foreach (var rawLine in lines)
     {
-      var line = rawLine.TrimEnd('\r').Replace("\t", "", StringComparison.Ordinal);
+      var line = rawLine.TrimEnd('\r').Replace("\t", string.Empty, StringComparison.Ordinal);
 
       if (string.IsNullOrWhiteSpace(line))
       {
@@ -54,7 +54,10 @@ public static class SourceProcessor
 
   private sealed class StripRewriter : CSharpSyntaxRewriter
   {
-    public StripRewriter() : base(visitIntoStructuredTrivia: true) { }
+    public StripRewriter()
+      : base(visitIntoStructuredTrivia: true)
+    {
+    }
 
     public override SyntaxNode? VisitUsingDirective(UsingDirectiveSyntax node) => null;
 

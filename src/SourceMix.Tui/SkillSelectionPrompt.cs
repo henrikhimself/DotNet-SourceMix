@@ -3,10 +3,6 @@ using Spectre.Console;
 
 namespace Hj.SourceMix.Tui;
 
-internal sealed record SkillSelection(
-  IReadOnlyList<string> SelectedKeys,
-  IReadOnlySet<string> PinnedKeys);
-
 internal static class SkillSelectionPrompt
 {
   private const int MaxVisible = 20;

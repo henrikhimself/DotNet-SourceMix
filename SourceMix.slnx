@@ -4,4 +4,5 @@
   <Project Path="src/SourceMix/SourceMix.csproj" />
   <Project Path="test/SourceMix.Tests/SourceMix.Tests.csproj" />
   <Project Path="test/SourceMix.Tui.Tests/SourceMix.Tui.Tests.csproj" />
+  <Project Path="test/SourceMix.Benchmarks/SourceMix.Benchmarks.csproj" />
 </Solution>

@@ -3,17 +3,27 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>Hj.$(MSBuildProjectName.Replace(" ", "_"))</RootNamespace>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <AnalysisMode>Recommended</AnalysisMode>
-    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Copyright>Copyright 2026 Henrik Jensen</Copyright>
+    <PackAsTool>true</PackAsTool>
+    <Version>1.0.0-beta1</Version>
+    <ToolCommandName>sourcemix</ToolCommandName>
+    <PackageId>SourceMix</PackageId>
+    <Title>SourceMix</Title>
+    <Description>Collect .NET C# source files into an LLM-friendly Markdown context file, with both CLI and interactive TUI workflows.</Description>
+    <PackageTags>dotnet-tool;cli;tui;csharp;llm;source-context</PackageTags>
+    <RepositoryUrl>https://github.com/henrikhimself/DotNet-SourceMix</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/henrikhimself/DotNet-SourceMix</PackageProjectUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedAllSources>true</EmbedAllSources>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\SourceMix.Core\SourceMix.Core.csproj" />
+    <ProjectReference Include="..\SourceMix.Tui\SourceMix.Tui.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -22,6 +32,15 @@
 
   <ItemGroup>
     <AdditionalFiles Include="..\..\stylecop.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SourceMix.Tests" />
   </ItemGroup>
 
 </Project>

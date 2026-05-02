@@ -53,10 +53,19 @@ public static class PreferencesManager
     }
 
     var json = fileSystem.File.ReadAllText(path);
-    var preferences = JsonSerializer.Deserialize(json, PreferencesJsonContext.Default.SolutionPreferences);
-    preferences = NormalizePreferences(preferences, solutionDirectory);
 
-    return preferences;
+    try
+    {
+      var preferences = JsonSerializer.Deserialize(json, PreferencesJsonContext.Default.SolutionPreferences);
+
+      return NormalizePreferences(preferences, solutionDirectory);
+    }
+    catch (JsonException exception)
+    {
+      WriteInvalidPreferencesWarning(path, exception);
+
+      return new SolutionPreferences { SolutionPath = solutionDirectory };
+    }
   }
 
   public static void Save(IFileSystem fileSystem, string solutionDirectory, SolutionPreferences preferences)
@@ -78,7 +87,8 @@ public static class PreferencesManager
     return Path.Combine(GetConfigDirectory(), "skills");
   }
 
-  public static string GetGlobalPreferencesPath()  {
+  public static string GetGlobalPreferencesPath()
+  {
     return Path.Combine(GetConfigDirectory(), "sourcemix-global.json");
   }
 
@@ -92,9 +102,19 @@ public static class PreferencesManager
     }
 
     var json = fileSystem.File.ReadAllText(path);
-    var preferences = JsonSerializer.Deserialize(json, GlobalPreferencesJsonContext.Default.GlobalPreferences);
 
-    return preferences ?? new GlobalPreferences();
+    try
+    {
+      var preferences = JsonSerializer.Deserialize(json, GlobalPreferencesJsonContext.Default.GlobalPreferences);
+
+      return NormalizeGlobalPreferences(preferences);
+    }
+    catch (JsonException exception)
+    {
+      WriteInvalidPreferencesWarning(path, exception);
+
+      return new GlobalPreferences();
+    }
   }
 
   public static void SaveGlobal(IFileSystem fileSystem, GlobalPreferences preferences)
@@ -123,5 +143,23 @@ public static class PreferencesManager
       PinnedFiles = preferences.PinnedFiles ?? [],
       PinnedSkills = preferences.PinnedSkills ?? [],
     };
+  }
+
+  private static GlobalPreferences NormalizeGlobalPreferences(GlobalPreferences? preferences)
+  {
+    if (preferences is null)
+    {
+      return new GlobalPreferences();
+    }
+
+    return preferences with
+    {
+      CustomPrompts = preferences.CustomPrompts ?? [],
+    };
+  }
+
+  private static void WriteInvalidPreferencesWarning(string path, JsonException exception)
+  {
+    Console.Error.WriteLine($"Warning: failed to read preferences from '{path}': {exception.Message}. Falling back to defaults.");
   }
 }

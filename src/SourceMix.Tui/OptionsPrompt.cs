@@ -3,13 +3,6 @@ using Spectre.Console;
 
 namespace Hj.SourceMix.Tui;
 
-internal sealed record MixOptions(
-  bool Recursive,
-  int MaxDepth,
-  bool IncludeCompiled,
-  bool Trim,
-  string OutputPath);
-
 internal static class OptionsPrompt
 {
   internal static MixOptions Show(SolutionPreferences preferences)
