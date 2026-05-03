@@ -7,10 +7,10 @@
     <PackAsTool>true</PackAsTool>
     <Version>1.0.0-beta1</Version>
     <ToolCommandName>sourcemix</ToolCommandName>
-    <PackageId>SourceMix</PackageId>
+    <PackageId>HenrikJensen.SourceMix</PackageId>
     <Title>SourceMix</Title>
     <Description>Collect .NET C# source files into an LLM-friendly Markdown context file, with both CLI and interactive TUI workflows.</Description>
-    <PackageTags>dotnet-tool;cli;tui;csharp;llm;source-context</PackageTags>
+    <PackageTags>dotnet-tool;cli;tui;csharp;llm;context-generation;source-context</PackageTags>
     <RepositoryUrl>https://github.com/henrikhimself/DotNet-SourceMix</RepositoryUrl>
     <PackageProjectUrl>https://github.com/henrikhimself/DotNet-SourceMix</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
