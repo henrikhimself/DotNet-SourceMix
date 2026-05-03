@@ -17,32 +17,6 @@ Both tools share a common library:
 - C#
 - Multi-platform support (Windows, Linux, macOS, containers)
 
-### Key source files
-
-| File | Purpose |
-|---|---|
-| `src/SourceMix.Core/DependencyResolver.cs` | Recursive type-dependency resolution using Roslyn; namespace-aware disambiguation |
-| `src/SourceMix.Core/SourceProcessor.cs` | Strips usings/comments from C# source; optional `TrimRewriter` removes method bodies |
-| `src/SourceMix.Core/OutputFormatter.cs` | Writes skills, code blocks, decompiled section, and prompt to a `TextWriter` |
-| `src/SourceMix.Core/BuiltInPrompts.cs` | 7 named built-in prompt personalities |
-| `src/SourceMix.Core/GlobalPreferences.cs` | Stores custom prompts shared across all solutions |
-| `src/SourceMix.Core/SolutionPreferences.cs` | Per-solution preferences: pinned files, pinned skills, default prompt key, option defaults |
-| `src/SourceMix.Core/PreferencesManager.cs` | Load/save solution and global prefs; `GetSkillsDirectory()` |
-| `src/SourceMix.Core/SkillScanner.cs` | Scans `skills/<Name>/SKILL.md` in the config directory |
-| `src/SourceMix.Core/AssemblyDecompiler.cs` | Decompiles interfaces and simple models from `bin/` DLLs using ICSharpCode.Decompiler |
-| `src/SourceMix/SourceMixCommandFactory.cs` | Builds the single `sourcemix` command surface and routes `tui` to the interactive flow |
-| `src/SourceMix/SourceMixCli.cs` | Non-interactive CLI execution logic used by the dotnet tool host |
-| `src/SourceMix.Tui/FileSearchPrompt.cs` | Raw-console file picker (Search / Pinned / Selected views) |
-| `src/SourceMix.Tui/OptionsPrompt.cs` | Spectre.Console wizard step for processing options |
-| `src/SourceMix.Tui/PromptSelector.cs` | Spectre.Console `SelectionPrompt` for choosing a prompt personality |
-| `src/SourceMix.Tui/SkillSelectionPrompt.cs` | Raw-console single-view skill selector with pinning |
-| `src/SourceMix.Tui/CsFileScanner.cs` | Scans solution for `.cs` files (excludes `bin/` and `obj/`) |
-| `src/SourceMix.Tui/SourceMixTuiApplication.cs` | TUI orchestration: load prefs → scan → select files → options → prompt → skills → process → write → save |
-| `src/SourceMix/Program.cs` | Minimal tool entry point that invokes the command factory |
-| `src/SourceMix/SourceMix.csproj` | Dotnet-tool packaging metadata, packaged README, and packaged LICENSE configuration |
-| `Directory.Build.targets` | Shared project-wide metadata such as authors and copyright |
-| `LICENSE` | MIT license text that must stay consistent with the package metadata |
-
 ## Common Commands
 
 ### Dotnet CLI tools

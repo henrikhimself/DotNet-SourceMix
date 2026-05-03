@@ -37,7 +37,10 @@ BUILD_OUT="$(printf '%s\n' "${BUILD_OUT}" | sed $'s/\x1b\\[[0-9;]*[a-zA-Z]//g')"
   || true) > "${X_ERROR}"
 
 # Merge sariff files
-mapfile -d '' -t _sarif_files < <(find . -type f -name '*.sarif' -print0 || true)
+_sarif_files=()
+while IFS= read -r -d '' _f; do
+  _sarif_files+=("${_f}")
+done < <(find . -type f -name '*.sarif' -print0 || true)
 if [[ ${#_sarif_files[@]} -gt 0 ]]; then
   jq -s '
     # pick $schema (handle $ in key) and version from first document

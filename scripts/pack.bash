@@ -18,7 +18,8 @@ if ! PACK_OUT="$(dotnet pack "${X_PROJECT}" -c Release --nologo 2>&1)"; then
 fi
 
 X_PACKAGE="$(
-  find "${X_OUTPUT_DIR}" -maxdepth 1 -type f -name 'SourceMix.*.nupkg' ! -name '*.snupkg' -printf '%T@ %p\n' \
+  find "${X_OUTPUT_DIR}" -maxdepth 1 -type f -name '*.nupkg' ! -name '*.snupkg' \
+    | while IFS= read -r f; do echo "$(date -r "$f" +%s) $f"; done \
     | sort -nr \
     | head -n 1 \
     | cut -d' ' -f2-
@@ -38,7 +39,8 @@ hj::text "Packing \`${X_CURRENT_DIR}/${X_PROJECT}\` successfully completed."
 hj::text "Package ready for publishing: \`${X_PACKAGE}\`"
 
 X_SYMBOLS="$(
-  find "${X_OUTPUT_DIR}" -maxdepth 1 -type f -name 'SourceMix.*.snupkg' -printf '%T@ %p\n' \
+  find "${X_OUTPUT_DIR}" -maxdepth 1 -type f -name '*.snupkg' \
+    | while IFS= read -r f; do echo "$(date -r "$f" +%s) $f"; done \
     | sort -nr \
     | head -n 1 \
     | cut -d' ' -f2-

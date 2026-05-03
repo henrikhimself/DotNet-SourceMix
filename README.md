@@ -12,7 +12,7 @@ The tool can include just the files you select, or expand outward to referenced 
 Install the tool globally from NuGet:
 
 ```bash
-dotnet tool install --global SourceMix
+dotnet tool install --global HenrikJensen.SourceMix
 ```
 
 After that, use the `sourcemix` command.
@@ -20,13 +20,13 @@ After that, use the `sourcemix` command.
 Update an existing installation:
 
 ```bash
-dotnet tool update --global SourceMix
+dotnet tool update --global HenrikJensen.SourceMix
 ```
 
 Uninstall it:
 
 ```bash
-dotnet tool uninstall --global SourceMix
+dotnet tool uninstall --global HenrikJensen.SourceMix
 ```
 
 ## Quick start
@@ -195,19 +195,19 @@ Create the NuGet package:
 The package is written to:
 
 ```text
-src/SourceMix/bin/Release/SourceMix.<version>.nupkg
+src/SourceMix/bin/Release/HenrikJensen.SourceMix.<version>.nupkg
 ```
 
 Install that package locally for validation:
 
 ```bash
-dotnet tool install --global --add-source ./src/SourceMix/bin/Release SourceMix
+dotnet tool install --global --add-source ./src/SourceMix/bin/Release HenrikJensen.SourceMix
 ```
 
 Publish it to NuGet:
 
 ```bash
-dotnet nuget push src/SourceMix/bin/Release/SourceMix.<version>.nupkg --source https://api.nuget.org/v3/index.json --api-key <api-key>
+dotnet nuget push src/SourceMix/bin/Release/HenrikJensen.SourceMix.<version>.nupkg --source https://api.nuget.org/v3/index.json --api-key <api-key>
 ```
 
 `pack.bash` only creates the Release package. Run `./scripts/build.bash` and `./scripts/test.bash` separately as your validation steps before publishing.
