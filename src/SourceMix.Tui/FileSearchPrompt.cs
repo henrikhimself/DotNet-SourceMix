@@ -4,8 +4,6 @@ namespace Hj.SourceMix.Tui;
 
 internal static class FileSearchPrompt
 {
-  private const int MaxVisible = 20;
-
   private enum ViewMode
   {
     Search,
@@ -13,303 +11,148 @@ internal static class FileSearchPrompt
     Selected,
   }
 
-  internal static FileSelection Show(IReadOnlyList<CsFile> files, IReadOnlySet<string> pinnedPaths)
+  internal static FileSelection Show(
+    IReadOnlyList<CsFile> files,
+    IReadOnlySet<string> pinnedPaths,
+    ITuiConsole? tuiConsole = null,
+    IKeyReader? keys = null)
   {
-    var selected = new HashSet<string>(pinnedPaths, StringComparer.OrdinalIgnoreCase);
-    var pinned = new HashSet<string>(pinnedPaths, StringComparer.OrdinalIgnoreCase);
+    ArgumentNullException.ThrowIfNull(files);
+    ArgumentNullException.ThrowIfNull(pinnedPaths);
+
+    tuiConsole ??= new SystemTuiConsole();
+    keys ??= new ConsoleKeyReader();
+
+    var comparer = StringComparer.OrdinalIgnoreCase;
+    var selected = new HashSet<string>(pinnedPaths, comparer);
+    var pinned = new HashSet<string>(pinnedPaths, comparer);
 
     var view = ViewMode.Search;
-    var search = string.Empty;
-    var searchCursor = 0;
-    var searchScroll = 0;
-    var pinnedCursor = 0;
-    var pinnedScroll = 0;
-    var selectedCursor = 0;
-    var selectedScroll = 0;
-
-    var lastSearch = (string?)null;
-    var pinnedVersion = 0;
-    var lastPinnedVersion = -1;
-    var selectedVersion = 0;
-    var lastSelectedVersion = -1;
-    IReadOnlyList<CsFile> filtered = [];
-    List<CsFile> pinnedList = [];
-    List<CsFile> selectedList = [];
-
-    using var frameBuffer = new StringWriter();
-    var frameConsole = AnsiConsole.Create(new AnsiConsoleSettings
-    {
-      Ansi = AnsiSupport.Yes,
-      ColorSystem = ColorSystemSupport.TrueColor,
-      Out = new AnsiConsoleOutput(frameBuffer),
-    });
 
     while (true)
     {
-      if (search != lastSearch)
+      var result = view switch
       {
-        var source = lastSearch is not null && search.StartsWith(lastSearch, StringComparison.OrdinalIgnoreCase)
-          ? filtered
-          : (IReadOnlyList<CsFile>)files;
-        filtered = Filter(source, search);
-        lastSearch = search;
-
-        if (searchCursor >= filtered.Count && filtered.Count > 0)
-        {
-          searchCursor = filtered.Count - 1;
-        }
-      }
-
-      if (pinnedVersion != lastPinnedVersion)
-      {
-        pinnedList = GetPinnedList(files, pinned);
-        lastPinnedVersion = pinnedVersion;
-
-        if (pinnedCursor >= pinnedList.Count && pinnedList.Count > 0)
-        {
-          pinnedCursor = pinnedList.Count - 1;
-        }
-      }
-
-      if (selectedVersion != lastSelectedVersion)
-      {
-        selectedList = GetSelectedList(files, selected);
-        lastSelectedVersion = selectedVersion;
-
-        if (selectedCursor >= selectedList.Count && selectedList.Count > 0)
-        {
-          selectedCursor = selectedList.Count - 1;
-        }
-      }
-
-      frameBuffer.GetStringBuilder().Clear();
-      var renderedLines = view switch
-      {
-        ViewMode.Search => RenderSearch(frameConsole, search, filtered, selected, pinned, searchCursor, searchScroll),
-        ViewMode.Pinned => RenderPinned(frameConsole, pinnedList, selected, pinned, pinnedCursor, pinnedScroll),
-        _ => RenderSelected(frameConsole, selectedList, selected, pinned, selectedCursor, selectedScroll),
+        ViewMode.Search => RunSearch(files, selected, pinned, tuiConsole, keys),
+        ViewMode.Pinned => RunPinned(files, selected, pinned, tuiConsole, keys),
+        _ => RunSelected(files, selected, pinned, tuiConsole, keys),
       };
-      Console.Write(frameBuffer.GetStringBuilder());
 
-      var key = Console.ReadKey(intercept: true);
+      SyncState(result, selected, pinned);
 
-      ClearLines(renderedLines);
-
-      switch (key.Key)
+      switch (result.Reason)
       {
-        case ConsoleKey.Enter:
-          AnsiConsole.WriteLine();
-          return new FileSelection([.. selected], pinned);
+        case ListPickerExitReason.Confirmed:
+          return new FileSelection(SelectedInOriginalOrder(files, selected), pinned);
 
-        case ConsoleKey.Escape:
-          AnsiConsole.WriteLine();
-          return new FileSelection([], new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        case ListPickerExitReason.Skipped:
+          return new FileSelection([], new HashSet<string>(comparer)) { Step = StepResult.Back };
 
-        case ConsoleKey.Tab:
+        case ListPickerExitReason.Quit:
+          return new FileSelection([], new HashSet<string>(comparer)) { Step = StepResult.Quit };
+
+        case ListPickerExitReason.KeyOverride when result.OverrideKey?.Key == ConsoleKey.Tab:
           view = view switch
           {
             ViewMode.Search => ViewMode.Pinned,
             ViewMode.Pinned => ViewMode.Selected,
             _ => ViewMode.Search,
           };
-          break;
-
-        case ConsoleKey.UpArrow:
-          if (view == ViewMode.Search)
-          {
-            if (searchCursor > 0)
-            {
-              searchCursor--;
-
-              if (searchCursor < searchScroll)
-              {
-                searchScroll = searchCursor;
-              }
-            }
-          }
-          else if (view == ViewMode.Pinned)
-          {
-            if (pinnedCursor > 0)
-            {
-              pinnedCursor--;
-
-              if (pinnedCursor < pinnedScroll)
-              {
-                pinnedScroll = pinnedCursor;
-              }
-            }
-          }
-          else
-          {
-            if (selectedCursor > 0)
-            {
-              selectedCursor--;
-
-              if (selectedCursor < selectedScroll)
-              {
-                selectedScroll = selectedCursor;
-              }
-            }
-          }
-
-          break;
-
-        case ConsoleKey.DownArrow:
-          if (view == ViewMode.Search)
-          {
-            if (searchCursor < filtered.Count - 1)
-            {
-              searchCursor++;
-
-              if (searchCursor >= searchScroll + MaxVisible)
-              {
-                searchScroll = searchCursor - MaxVisible + 1;
-              }
-            }
-          }
-          else if (view == ViewMode.Pinned)
-          {
-            if (pinnedCursor < pinnedList.Count - 1)
-            {
-              pinnedCursor++;
-
-              if (pinnedCursor >= pinnedScroll + MaxVisible)
-              {
-                pinnedScroll = pinnedCursor - MaxVisible + 1;
-              }
-            }
-          }
-          else
-          {
-            if (selectedCursor < selectedList.Count - 1)
-            {
-              selectedCursor++;
-
-              if (selectedCursor >= selectedScroll + MaxVisible)
-              {
-                selectedScroll = selectedCursor - MaxVisible + 1;
-              }
-            }
-          }
-
-          break;
-
-        case ConsoleKey.Spacebar:
-          if (view == ViewMode.Search)
-          {
-            if (filtered.Count > 0)
-            {
-              var file = filtered[searchCursor];
-
-              if (!selected.Remove(file.FullPath))
-              {
-                selected.Add(file.FullPath);
-              }
-
-              selectedVersion++;
-            }
-          }
-          else if (view == ViewMode.Pinned)
-          {
-            if (pinnedList.Count > 0)
-            {
-              var file = pinnedList[pinnedCursor];
-              pinned.Remove(file.FullPath);
-              selected.Remove(file.FullPath);
-              pinnedVersion++;
-              selectedVersion++;
-            }
-          }
-          else
-          {
-            if (selectedList.Count > 0)
-            {
-              var file = selectedList[selectedCursor];
-              pinned.Remove(file.FullPath);
-              selected.Remove(file.FullPath);
-              pinnedVersion++;
-              selectedVersion++;
-            }
-          }
-
-          break;
-
-        case ConsoleKey.U when key.Modifiers.HasFlag(ConsoleModifiers.Control):
-          if (view == ViewMode.Search)
-          {
-            search = string.Empty;
-            searchCursor = 0;
-            searchScroll = 0;
-          }
-
-          break;
-
-        case ConsoleKey.Backspace:
-          if (view == ViewMode.Search)
-          {
-            if (key.Modifiers.HasFlag(ConsoleModifiers.Control))
-            {
-              search = string.Empty;
-              searchCursor = 0;
-              searchScroll = 0;
-            }
-            else if (search.Length > 0)
-            {
-              search = search[..^1];
-              searchCursor = 0;
-              searchScroll = 0;
-            }
-          }
-
-          break;
-
-        case ConsoleKey.P when key.Modifiers.HasFlag(ConsoleModifiers.Control):
-          if (view == ViewMode.Search)
-          {
-            if (filtered.Count > 0)
-            {
-              var file = filtered[searchCursor];
-
-              if (pinned.Remove(file.FullPath))
-              {
-                selected.Remove(file.FullPath);
-              }
-              else
-              {
-                pinned.Add(file.FullPath);
-                selected.Add(file.FullPath);
-              }
-
-              pinnedVersion++;
-              selectedVersion++;
-            }
-          }
-          else if (view == ViewMode.Pinned)
-          {
-            if (pinnedList.Count > 0)
-            {
-              var file = pinnedList[pinnedCursor];
-              pinned.Remove(file.FullPath);
-              selected.Remove(file.FullPath);
-              pinnedVersion++;
-              selectedVersion++;
-            }
-          }
-
+          tuiConsole.ClearScreen();
+          TuiRender.WriteAppHeading(tuiConsole);
           break;
 
         default:
-          if (view == ViewMode.Search && !char.IsControl(key.KeyChar))
-          {
-            search += key.KeyChar;
-            searchCursor = 0;
-            searchScroll = 0;
-          }
-
-          break;
+          return new FileSelection([], new HashSet<string>(comparer));
       }
     }
   }
+
+  private static ListPickerResult<CsFile> RunSearch(
+    IReadOnlyList<CsFile> files,
+    HashSet<string> selected,
+    HashSet<string> pinned,
+    ITuiConsole console,
+    IKeyReader keys)
+  {
+    var picker = new ListPickerPrompt<CsFile>
+    {
+      Header = "[bold underline]Search[/]  [dim]Pinned (P)[/]  [dim]Selected (S)[/]  [dim](Tab \u00b7 Space select/deselect \u00b7 Ctrl+P pin/unpin \u00b7 Ctrl+U clear search \u00b7 Enter confirm \u00b7 Ctrl+Q quit)[/]",
+      Items = files,
+      KeySelector = static f => f.FullPath,
+      MultiSelect = true,
+      AllowPin = true,
+      LinkPinAndSelection = true,
+      InitialSelected = selected,
+      InitialPinned = pinned,
+      Filter = text => Filter(files, text),
+      Renderer = RenderSearchRow,
+      KeyOverride = TabOverride,
+    };
+
+    return picker.Show(console, keys);
+  }
+
+  private static ListPickerResult<CsFile> RunPinned(
+    IReadOnlyList<CsFile> files,
+    HashSet<string> selected,
+    HashSet<string> pinned,
+    ITuiConsole console,
+    IKeyReader keys)
+  {
+    var pinnedList = files
+      .Where(f => pinned.Contains(f.FullPath))
+      .OrderBy(f => f.RelativePath, StringComparer.OrdinalIgnoreCase)
+      .ToList();
+
+    var picker = new ListPickerPrompt<CsFile>
+    {
+      Header = "[dim]Search[/]  [bold underline]Pinned (P)[/]  [dim]Selected (S)[/]  [dim](Tab \u00b7 Ctrl+P unpin/pin \u00b7 Enter confirm \u00b7 Ctrl+Q quit)[/]",
+      Items = pinnedList,
+      KeySelector = static f => f.FullPath,
+      MultiSelect = true,
+      AllowPin = true,
+      LinkPinAndSelection = false,
+      InitialSelected = selected,
+      InitialPinned = pinned,
+      Renderer = RenderPinnedRow,
+      KeyOverride = TabOverride,
+    };
+
+    return picker.Show(console, keys);
+  }
+
+  private static ListPickerResult<CsFile> RunSelected(
+    IReadOnlyList<CsFile> files,
+    HashSet<string> selected,
+    HashSet<string> pinned,
+    ITuiConsole console,
+    IKeyReader keys)
+  {
+    var selectedList = files
+      .Where(f => selected.Contains(f.FullPath))
+      .OrderBy(f => f.RelativePath, StringComparer.OrdinalIgnoreCase)
+      .ToList();
+
+    var picker = new ListPickerPrompt<CsFile>
+    {
+      Header = "[dim]Search[/]  [dim]Pinned (P)[/]  [bold underline]Selected (S)[/]  [dim](Tab \u00b7 Space deselect/select \u00b7 Ctrl+P pin/unpin \u00b7 Enter confirm \u00b7 Ctrl+Q quit)[/]",
+      Items = selectedList,
+      KeySelector = static f => f.FullPath,
+      MultiSelect = true,
+      AllowPin = true,
+      LinkPinAndSelection = false,
+      InitialSelected = selected,
+      InitialPinned = pinned,
+      Renderer = RenderSelectedRow,
+      KeyOverride = TabOverride,
+    };
+
+    return picker.Show(console, keys);
+  }
+
+  private static ListPickerKeyAction TabOverride(ConsoleKeyInfo key)
+    => key.Key == ConsoleKey.Tab ? ListPickerKeyAction.Exit : ListPickerKeyAction.NotHandled;
 
   private static IReadOnlyList<CsFile> Filter(IReadOnlyList<CsFile> files, string search)
   {
@@ -331,200 +174,84 @@ internal static class FileSearchPrompt
     return result;
   }
 
-  private static List<CsFile> GetPinnedList(IReadOnlyList<CsFile> files, HashSet<string> pinned)
+  private static string RenderSearchRow(CsFile file, ListPickerItemState state)
   {
-    return files
-      .Where(f => pinned.Contains(f.FullPath))
-      .OrderBy(f => f.RelativePath, StringComparer.OrdinalIgnoreCase)
-      .ToList();
+    var arrow = state.IsCursor ? "[darkorange]>[/]" : " ";
+    var checkbox = state.IsSelected ? "[green]+[/]" : "[dim]-[/]";
+    var pin = state.IsPinned ? " [cyan]*[/]" : string.Empty;
+    var label = state.IsCursor
+      ? $"[bold]{Markup.Escape(file.RelativePath)}[/]"
+      : $"[dim]{Markup.Escape(file.RelativePath)}[/]";
+
+    return $" {arrow} {checkbox} {label}{pin}";
   }
 
-  private static List<CsFile> GetSelectedList(IReadOnlyList<CsFile> files, HashSet<string> selected)
+  private static string RenderPinnedRow(CsFile file, ListPickerItemState state)
   {
-    return files
-      .Where(f => selected.Contains(f.FullPath))
-      .OrderBy(f => f.RelativePath, StringComparer.OrdinalIgnoreCase)
-      .ToList();
+    var arrow = state.IsCursor ? "[darkorange]>[/]" : " ";
+    var checkbox = state.IsSelected ? "[green]+[/]" : "[dim]-[/]";
+    var pin = state.IsPinned ? " [cyan]*[/]" : string.Empty;
+    var label = state.IsCursor
+      ? $"[bold]{Markup.Escape(file.RelativePath)}[/]"
+      : $"[dim]{Markup.Escape(file.RelativePath)}[/]";
+
+    return $" {arrow} {checkbox} {label}{pin}";
   }
 
-  private static int RenderSearch(
-    IAnsiConsole console,
-    string search,
-    IReadOnlyList<CsFile> filtered,
+  private static string RenderSelectedRow(CsFile file, ListPickerItemState state)
+  {
+    var arrow = state.IsCursor ? "[darkorange]>[/]" : " ";
+    var checkbox = state.IsSelected ? "[green]+[/]" : "[dim]-[/]";
+    var pin = state.IsPinned ? " [cyan]*[/]" : string.Empty;
+    var label = state.IsCursor
+      ? $"[bold]{Markup.Escape(file.RelativePath)}[/]"
+      : $"[dim]{Markup.Escape(file.RelativePath)}[/]";
+
+    return $" {arrow} {checkbox} {label}{pin}";
+  }
+
+  private static void SyncState(
+    ListPickerResult<CsFile> result,
     HashSet<string> selected,
-    HashSet<string> pinned,
-    int cursorIndex,
-    int scrollOffset)
+    HashSet<string> pinned)
   {
-    var searchDisplay = string.IsNullOrEmpty(search) ? "[dim]<type to filter>[/]" : $"[yellow]{search}[/]";
-    var matchCount = filtered.Count == 1 ? "1 match" : $"{filtered.Count} matches";
+    selected.Clear();
 
-    console.MarkupLine($"[bold underline]Search[/]  [dim]Pinned ({pinned.Count})[/]  [dim]Selected ({selected.Count})[/]  [dim](Tab · Space select · Ctrl+P pin · Ctrl+U clear · Enter confirm)[/]");
-    console.MarkupLine($"  Filter: {searchDisplay}  [dim]({matchCount})[/]");
-    console.WriteLine();
-
-    var visibleEnd = Math.Min(scrollOffset + MaxVisible, filtered.Count);
-
-    for (var i = scrollOffset; i < visibleEnd; i++)
+    if (result.SelectedKeys is { } keys)
     {
-      var file = filtered[i];
-      var isSelected = selected.Contains(file.FullPath);
-      var isPinned = pinned.Contains(file.FullPath);
-      var isCursor = i == cursorIndex;
-
-      var checkbox = isSelected ? "[green]+[/]" : "[dim]-[/]";
-      var arrow = isCursor ? "[darkorange]>[/]" : " ";
-      var pin = isPinned ? " [cyan]*[/]" : string.Empty;
-
-      if (isCursor)
+      foreach (var key in keys)
       {
-        console.MarkupLine($" {arrow} {checkbox} [bold]{Markup.Escape(file.RelativePath)}[/]{pin}");
+        selected.Add(key);
       }
-      else
+    }
+    else
+    {
+      foreach (var item in result.Selected)
       {
-        console.MarkupLine($" {arrow} {checkbox} [dim]{Markup.Escape(file.RelativePath)}[/]{pin}");
+        selected.Add(item.FullPath);
       }
     }
 
-    var extraLines = 0;
+    pinned.Clear();
 
-    if (filtered.Count > MaxVisible)
+    foreach (var path in result.Pinned)
     {
-      var remaining = filtered.Count - visibleEnd;
-
-      if (remaining > 0)
-      {
-        console.MarkupLine($"  [dim]... {remaining} more (scroll down)[/]");
-        extraLines++;
-      }
+      pinned.Add(path);
     }
-
-    if (filtered.Count == 0)
-    {
-      console.MarkupLine("  [dim]No files match.[/]");
-      extraLines++;
-    }
-
-    return 3 + (visibleEnd - scrollOffset) + extraLines;
   }
 
-  private static int RenderPinned(
-    IAnsiConsole console,
-    List<CsFile> pinnedList,
-    HashSet<string> selected,
-    HashSet<string> pinned,
-    int cursorIndex,
-    int scrollOffset)
+  private static List<string> SelectedInOriginalOrder(IReadOnlyList<CsFile> files, HashSet<string> selected)
   {
-    console.MarkupLine($"[dim]Search[/]  [bold underline]Pinned ({pinned.Count})[/]  [dim]Selected ({selected.Count})[/]  [dim](Tab · Space/Ctrl+P unpin · Enter confirm)[/]");
-    console.WriteLine();
+    var ordered = new List<string>(selected.Count);
 
-    if (pinnedList.Count == 0)
+    foreach (var file in files)
     {
-      console.MarkupLine("  [dim]No pinned files. Press Ctrl+P on a file in Search to pin it.[/]");
-
-      return 3;
-    }
-
-    var visibleEnd = Math.Min(scrollOffset + MaxVisible, pinnedList.Count);
-
-    for (var i = scrollOffset; i < visibleEnd; i++)
-    {
-      var file = pinnedList[i];
-      var isSelected = selected.Contains(file.FullPath);
-      var isCursor = i == cursorIndex;
-
-      var checkbox = isSelected ? "[green]+[/]" : "[dim]-[/]";
-      var arrow = isCursor ? "[darkorange]>[/]" : " ";
-
-      if (isCursor)
+      if (selected.Contains(file.FullPath))
       {
-        console.MarkupLine($" {arrow} {checkbox} [cyan]*[/] [bold]{Markup.Escape(file.RelativePath)}[/]");
-      }
-      else
-      {
-        console.MarkupLine($" {arrow} {checkbox} [cyan]*[/] [dim]{Markup.Escape(file.RelativePath)}[/]");
+        ordered.Add(file.FullPath);
       }
     }
 
-    var extraLines = 0;
-
-    if (pinnedList.Count > MaxVisible)
-    {
-      var remaining = pinnedList.Count - visibleEnd;
-
-      if (remaining > 0)
-      {
-        console.MarkupLine($"  [dim]... {remaining} more (scroll down)[/]");
-        extraLines++;
-      }
-    }
-
-    return 2 + (visibleEnd - scrollOffset) + extraLines;
-  }
-
-  private static int RenderSelected(
-    IAnsiConsole console,
-    List<CsFile> selectedList,
-    HashSet<string> selected,
-    HashSet<string> pinned,
-    int cursorIndex,
-    int scrollOffset)
-  {
-    console.MarkupLine($"[dim]Search[/]  [dim]Pinned ({pinned.Count})[/]  [bold underline]Selected ({selected.Count})[/]  [dim](Tab · Space deselect · Enter confirm)[/]");
-    console.WriteLine();
-
-    if (selectedList.Count == 0)
-    {
-      console.MarkupLine("  [dim]No files selected. Press Space on a file in Search to select it.[/]");
-
-      return 3;
-    }
-
-    var visibleEnd = Math.Min(scrollOffset + MaxVisible, selectedList.Count);
-
-    for (var i = scrollOffset; i < visibleEnd; i++)
-    {
-      var file = selectedList[i];
-      var isPinned = pinned.Contains(file.FullPath);
-      var isCursor = i == cursorIndex;
-
-      var arrow = isCursor ? "[darkorange]>[/]" : " ";
-      var pin = isPinned ? " [cyan]*[/]" : string.Empty;
-
-      if (isCursor)
-      {
-        console.MarkupLine($" {arrow} [green]+[/] [bold]{Markup.Escape(file.RelativePath)}[/]{pin}");
-      }
-      else
-      {
-        console.MarkupLine($" {arrow} [green]+[/] [dim]{Markup.Escape(file.RelativePath)}[/]{pin}");
-      }
-    }
-
-    var extraLines = 0;
-
-    if (selectedList.Count > MaxVisible)
-    {
-      var remaining = selectedList.Count - visibleEnd;
-
-      if (remaining > 0)
-      {
-        console.MarkupLine($"  [dim]... {remaining} more (scroll down)[/]");
-        extraLines++;
-      }
-    }
-
-    return 2 + (visibleEnd - scrollOffset) + extraLines;
-  }
-
-  private static void ClearLines(int lineCount)
-  {
-    if (lineCount <= 0)
-    {
-      return;
-    }
-
-    Console.Write($"\x1b[{lineCount}A\x1b[0J");
+    return ordered;
   }
 }

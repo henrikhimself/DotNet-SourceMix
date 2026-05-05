@@ -5,7 +5,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackAsTool>true</PackAsTool>
-    <Version>1.0.0-beta1</Version>
+    <Version>1.0.0-beta2</Version>
     <ToolCommandName>sourcemix</ToolCommandName>
     <PackageId>HenrikJensen.SourceMix</PackageId>
     <Title>SourceMix</Title>

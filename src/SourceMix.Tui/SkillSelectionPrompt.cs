@@ -5,168 +5,65 @@ namespace Hj.SourceMix.Tui;
 
 internal static class SkillSelectionPrompt
 {
-  private const int MaxVisible = 20;
-
-  internal static SkillSelection Show(IReadOnlyList<Skill> skills, IReadOnlySet<string> pinnedKeys)
-  {
-    var selected = new HashSet<string>(pinnedKeys, StringComparer.OrdinalIgnoreCase);
-    var pinned = new HashSet<string>(pinnedKeys, StringComparer.OrdinalIgnoreCase);
-    var cursor = 0;
-    var scroll = 0;
-
-    while (true)
-    {
-      if (cursor >= skills.Count && skills.Count > 0)
-      {
-        cursor = skills.Count - 1;
-      }
-
-      var renderedLines = Render(skills, selected, pinned, cursor, scroll);
-      var key = Console.ReadKey(intercept: true);
-      ClearLines(renderedLines);
-
-      switch (key.Key)
-      {
-        case ConsoleKey.Enter:
-          AnsiConsole.WriteLine();
-          return new SkillSelection([.. selected], pinned);
-
-        case ConsoleKey.Escape:
-          AnsiConsole.WriteLine();
-          return new SkillSelection([], new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-
-        case ConsoleKey.UpArrow:
-          if (cursor > 0)
-          {
-            cursor--;
-
-            if (cursor < scroll)
-            {
-              scroll = cursor;
-            }
-          }
-
-          break;
-
-        case ConsoleKey.DownArrow:
-          if (cursor < skills.Count - 1)
-          {
-            cursor++;
-
-            if (cursor >= scroll + MaxVisible)
-            {
-              scroll = cursor - MaxVisible + 1;
-            }
-          }
-
-          break;
-
-        case ConsoleKey.Spacebar:
-          if (skills.Count > 0)
-          {
-            var skill = skills[cursor];
-
-            if (!selected.Remove(skill.Key))
-            {
-              selected.Add(skill.Key);
-            }
-
-            pinned.Remove(skill.Key);
-          }
-
-          break;
-
-        case ConsoleKey.P when key.Modifiers.HasFlag(ConsoleModifiers.Control):
-          if (skills.Count > 0)
-          {
-            var skill = skills[cursor];
-
-            if (pinned.Remove(skill.Key))
-            {
-              selected.Remove(skill.Key);
-            }
-            else
-            {
-              pinned.Add(skill.Key);
-              selected.Add(skill.Key);
-            }
-          }
-
-          break;
-      }
-    }
-  }
-
-  private static int Render(
+  internal static SkillSelection Show(
     IReadOnlyList<Skill> skills,
-    HashSet<string> selected,
-    HashSet<string> pinned,
-    int cursorIndex,
-    int scrollOffset)
+    IReadOnlySet<string> pinnedKeys,
+    ITuiConsole? tuiConsole = null,
+    IKeyReader? keys = null)
   {
-    AnsiConsole.MarkupLine(
-      $"[bold]Select skills[/]  [dim]({selected.Count} selected · {pinned.Count} pinned)[/]  " +
-      "[dim](Space select · Ctrl+P pin · Enter confirm)[/]");
-    AnsiConsole.WriteLine();
+    ArgumentNullException.ThrowIfNull(skills);
+    ArgumentNullException.ThrowIfNull(pinnedKeys);
 
-    if (skills.Count == 0)
+    tuiConsole ??= new SystemTuiConsole();
+    keys ??= new ConsoleKeyReader();
+
+    var initial = new HashSet<string>(pinnedKeys, StringComparer.OrdinalIgnoreCase);
+
+    var picker = new ListPickerPrompt<Skill>
     {
-      AnsiConsole.MarkupLine("  [dim]No skills found.[/]");
+      Header = "[bold]Select skills[/]  [dim](Space select \u00b7 Ctrl+P pin/unpin \u00b7 Enter confirm \u00b7 Ctrl+Q back)[/]",
+      Items = skills,
+      KeySelector = static s => s.Key,
+      MultiSelect = true,
+      AllowPin = true,
+      LinkPinAndSelection = true,
+      InitialSelected = initial,
+      InitialPinned = initial,
+      Renderer = RenderRow,
+    };
 
-      return 4;
+    var result = picker.Show(tuiConsole, keys);
+
+    if (result.Reason == ListPickerExitReason.Skipped)
+    {
+      return new SkillSelection([], new HashSet<string>(StringComparer.OrdinalIgnoreCase))
+      {
+        Step = StepResult.Back,
+      };
     }
 
-    var visibleEnd = Math.Min(scrollOffset + MaxVisible, skills.Count);
-
-    for (var i = scrollOffset; i < visibleEnd; i++)
+    if (result.Reason == ListPickerExitReason.Quit)
     {
-      var skill = skills[i];
-      var isSelected = selected.Contains(skill.Key);
-      var isPinned = pinned.Contains(skill.Key);
-      var isCursor = i == cursorIndex;
-
-      var checkbox = isSelected ? "[green]+[/]" : "[dim]-[/]";
-      var arrow = isCursor ? "[darkorange]>[/]" : " ";
-      var pin = isPinned ? " [cyan]*[/]" : string.Empty;
-
-      if (isCursor)
+      return new SkillSelection([], new HashSet<string>(StringComparer.OrdinalIgnoreCase))
       {
-        AnsiConsole.MarkupLine($" {arrow} {checkbox} [bold]{Markup.Escape(skill.Key)}[/]{pin}");
-      }
-      else
-      {
-        AnsiConsole.MarkupLine($" {arrow} {checkbox} [dim]{Markup.Escape(skill.Key)}[/]{pin}");
-      }
+        Step = StepResult.Quit,
+      };
     }
 
-    var extraLines = 0;
-
-    if (skills.Count > MaxVisible)
-    {
-      var remaining = skills.Count - visibleEnd;
-
-      if (remaining > 0)
-      {
-        AnsiConsole.MarkupLine($"  [dim]... {remaining} more (scroll down)[/]");
-        extraLines++;
-      }
-    }
-
-    return 3 + (visibleEnd - scrollOffset) + extraLines;
+    return new SkillSelection(
+      [.. result.Selected.Select(s => s.Key)],
+      result.Pinned);
   }
 
-  private static void ClearLines(int lineCount)
+  private static string RenderRow(Skill skill, ListPickerItemState state)
   {
-    for (var i = 0; i < lineCount; i++)
-    {
-      Console.CursorLeft = 0;
-      Console.Write(new string(' ', Console.WindowWidth > 0 ? Console.WindowWidth : 80));
-      Console.CursorLeft = 0;
+    var arrow = state.IsCursor ? "[darkorange]>[/]" : " ";
+    var checkbox = state.IsSelected ? "[green]+[/]" : "[dim]-[/]";
+    var pin = state.IsPinned ? " [cyan]*[/]" : string.Empty;
+    var label = state.IsCursor
+      ? $"[bold]{Markup.Escape(skill.Key)}[/]"
+      : $"[dim]{Markup.Escape(skill.Key)}[/]";
 
-      if (i < lineCount - 1)
-      {
-        Console.CursorTop--;
-      }
-    }
+    return $" {arrow} {checkbox} {label}{pin}";
   }
 }

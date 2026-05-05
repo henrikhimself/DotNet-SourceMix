@@ -2,4 +2,7 @@ namespace Hj.SourceMix.Tui;
 
 internal sealed record FileSelection(
   IReadOnlyList<string> SelectedPaths,
-  IReadOnlySet<string> PinnedPaths);
+  IReadOnlySet<string> PinnedPaths)
+{
+  public StepResult Step { get; init; } = StepResult.Confirm;
+}

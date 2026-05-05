@@ -16,16 +16,39 @@ public static class SourceMixTuiApplication
     string baseDirectory,
     CancellationToken cancellationToken = default)
   {
+    return await RunAsync(
+      fileSystem,
+      baseDirectory,
+      AnsiConsole.Console,
+      new SystemTuiConsole(),
+      new ConsoleKeyReader(),
+      cancellationToken).ConfigureAwait(false);
+  }
+
+  internal static async Task<int> RunAsync(
+    IFileSystem fileSystem,
+    string baseDirectory,
+    IAnsiConsole ansiConsole,
+    ITuiConsole tuiConsole,
+    IKeyReader keyReader,
+    CancellationToken cancellationToken = default)
+  {
+    ArgumentNullException.ThrowIfNull(fileSystem);
+    ArgumentNullException.ThrowIfNull(baseDirectory);
+    ArgumentNullException.ThrowIfNull(ansiConsole);
+    ArgumentNullException.ThrowIfNull(tuiConsole);
+    ArgumentNullException.ThrowIfNull(keyReader);
+
     var solutionDirectory = SolutionFinder.FindSolutionDirectory(fileSystem, baseDirectory);
 
     if (solutionDirectory is null)
     {
-      AnsiConsole.MarkupLine("[red]Error:[/] No solution file (.sln or .slnx) found in the current directory or any parent.");
+      ansiConsole.MarkupLine("[red]Error:[/] No solution file (.sln or .slnx) found in the current directory or any parent.");
       return 1;
     }
 
-    AnsiConsole.MarkupLine($"[bold]SourceMix[/] [dim]— {Markup.Escape(solutionDirectory)}[/]");
-    AnsiConsole.WriteLine();
+    ansiConsole.MarkupLine($"[bold]SourceMix[/] [dim]— {Markup.Escape(solutionDirectory)}[/]");
+    ansiConsole.WriteLine();
 
     var preferences = PreferencesManager.Load(fileSystem, solutionDirectory);
     var globalPreferences = PreferencesManager.LoadGlobal(fileSystem);
@@ -33,7 +56,7 @@ public static class SourceMixTuiApplication
     var scanner = new CsFileScanner(fileSystem, solutionDirectory);
     IReadOnlyList<CsFile> allFiles = [];
 
-    AnsiConsole.Status()
+    ansiConsole.Status()
       .Start("Scanning for .cs files...", _ =>
       {
         allFiles = scanner.GetAllFiles();
@@ -41,12 +64,12 @@ public static class SourceMixTuiApplication
 
     if (allFiles.Count == 0)
     {
-      AnsiConsole.MarkupLine("[yellow]No .cs files found in the solution directory.[/]");
+      ansiConsole.MarkupLine("[yellow]No .cs files found in the solution directory.[/]");
       return 0;
     }
 
-    AnsiConsole.MarkupLine($"[dim]Found {allFiles.Count} .cs files.[/]");
-    AnsiConsole.WriteLine();
+    ansiConsole.MarkupLine($"[dim]Found {allFiles.Count} .cs files.[/]");
+    ansiConsole.WriteLine();
 
     var pinnedFullPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -60,42 +83,43 @@ public static class SourceMixTuiApplication
       }
     }
 
-    var selection = FileSearchPrompt.Show(allFiles, pinnedFullPaths);
-
-    if (selection.SelectedPaths.Count == 0)
-    {
-      AnsiConsole.MarkupLine("[yellow]No files selected. Exiting.[/]");
-      return 0;
-    }
-
-    var selectedPaths = selection.SelectedPaths;
-    var seedPathSet = new HashSet<string>(selectedPaths, StringComparer.OrdinalIgnoreCase);
-
-    AnsiConsole.WriteLine();
-    var options = OptionsPrompt.Show(preferences);
-    AnsiConsole.WriteLine();
-
-    var (selectedPromptText, selectedPromptKey, updatedGlobalPreferences) =
-      PromptSelector.Show(globalPreferences, preferences.DefaultPromptKey);
-    AnsiConsole.WriteLine();
-
     var skillsDirectory = PreferencesManager.GetSkillsDirectory();
     var allSkills = SkillScanner.GetAllSkills(fileSystem, skillsDirectory);
     var pinnedSkillKeys = new HashSet<string>(preferences.PinnedSkills, StringComparer.OrdinalIgnoreCase);
-    SkillSelection skillSelection = new([], new HashSet<string>(StringComparer.OrdinalIgnoreCase));
 
-    if (allSkills.Count > 0)
+    var wizard = TuiWizard.Run(
+      globalPreferences,
+      preferences,
+      allFiles,
+      pinnedFullPaths,
+      allSkills,
+      pinnedSkillKeys,
+      tuiConsole,
+      keyReader,
+      fileSystem);
+
+    if (wizard.Quit)
     {
-      skillSelection = SkillSelectionPrompt.Show(allSkills, pinnedSkillKeys);
-      AnsiConsole.WriteLine();
+      ansiConsole.MarkupLine("[yellow]Cancelled.[/]");
+      return 0;
     }
+
+    if (!wizard.Confirmed)
+    {
+      ansiConsole.MarkupLine("[yellow]Cancelled.[/]");
+      return 0;
+    }
+
+    var options = wizard.Options!;
+    var selectedPaths = wizard.SelectedFiles;
+    var seedPathSet = new HashSet<string>(selectedPaths, StringComparer.OrdinalIgnoreCase);
 
     var resolvedFiles = selectedPaths;
     IReadOnlySet<string> unresolvedTypeNames = new HashSet<string>();
 
     if (options.Recursive)
     {
-      await AnsiConsole.Status()
+      await ansiConsole.Status()
         .StartAsync("Resolving dependencies...", async _ =>
         {
           await Task.Run(
@@ -108,12 +132,12 @@ public static class SourceMixTuiApplication
             cancellationToken).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
-      AnsiConsole.MarkupLine($"[dim]Resolved {resolvedFiles.Count} files ({resolvedFiles.Count - selectedPaths.Count} dependencies added).[/]");
+      ansiConsole.MarkupLine($"[dim]Resolved {resolvedFiles.Count} files ({resolvedFiles.Count - selectedPaths.Count} dependencies added).[/]");
     }
 
     var processedSources = new List<string>(resolvedFiles.Count);
 
-    await AnsiConsole.Progress()
+    await ansiConsole.Progress()
       .StartAsync(async ctx =>
       {
         var task = ctx.AddTask("[green]Processing source files[/]", maxValue: resolvedFiles.Count);
@@ -131,7 +155,7 @@ public static class SourceMixTuiApplication
 
     if (options.IncludeCompiled && unresolvedTypeNames.Count > 0)
     {
-      await AnsiConsole.Status()
+      await ansiConsole.Status()
         .StartAsync("Decompiling referenced types from assemblies...", async _ =>
         {
           await Task.Run(
@@ -149,18 +173,34 @@ public static class SourceMixTuiApplication
 
       if (decompiledSources.Count > 0)
       {
-        AnsiConsole.MarkupLine($"[dim]Decompiled {decompiledSources.Count} types from assemblies.[/]");
+        ansiConsole.MarkupLine($"[dim]Decompiled {decompiledSources.Count} types from assemblies.[/]");
       }
     }
 
-    var outputFile = new FileInfo(options.OutputPath);
-    var skillContents = skillSelection.SelectedKeys
+    var fileMode = FileMode.Create;
+    if (fileSystem.File.Exists(options.OutputPath))
+    {
+      var choice = ansiConsole.Prompt(new SelectionPrompt<string>()
+        .Title($"Output file [bold]{Markup.Escape(options.OutputPath)}[/] exists. What do you want to do?")
+        .AddChoices("Overwrite", "Append", "Cancel"));
+      switch (choice)
+      {
+        case "Append":
+          fileMode = FileMode.Append;
+          break;
+        case "Cancel":
+          ansiConsole.MarkupLine("[yellow]Cancelled.[/]");
+          return 0;
+      }
+    }
+
+    var skillContents = wizard.SelectedSkillKeys
       .Select(k => allSkills.FirstOrDefault(s => string.Equals(s.Key, k, StringComparison.OrdinalIgnoreCase)))
       .Where(s => s is not null)
       .Select(s => fileSystem.File.ReadAllText(s!.FilePath))
       .ToList();
 
-    await using (var stream = outputFile.Open(FileMode.Create, FileAccess.Write, FileShare.None))
+    await using (var stream = fileSystem.File.Open(options.OutputPath, fileMode, FileAccess.Write, FileShare.None))
     await using (var writer = new StreamWriter(stream))
     {
       if (skillContents.Count > 0)
@@ -170,13 +210,13 @@ public static class SourceMixTuiApplication
 
       OutputFormatter.WriteCode(processedSources, decompiledSources, writer);
 
-      if (selectedPromptText is not null)
+      if (wizard.PromptText is not null)
       {
-        OutputFormatter.WritePrompt(writer, selectedPromptText);
+        OutputFormatter.WritePrompt(writer, wizard.PromptText);
       }
     }
 
-    var pinnedRelativePaths = selection.PinnedPaths
+    var pinnedRelativePaths = wizard.PinnedFiles
       .Select(p => fileSystem.Path.GetRelativePath(solutionDirectory, p))
       .Order(StringComparer.OrdinalIgnoreCase)
       .ToList();
@@ -186,8 +226,8 @@ public static class SourceMixTuiApplication
       SolutionPath = solutionDirectory,
       PinnedFiles = pinnedRelativePaths,
       OutputPath = options.OutputPath,
-      DefaultPromptKey = selectedPromptKey,
-      PinnedSkills = [.. skillSelection.PinnedKeys.Order(StringComparer.OrdinalIgnoreCase)],
+      DefaultPromptKey = wizard.PromptKey,
+      PinnedSkills = [.. wizard.PinnedSkillKeys.Order(StringComparer.OrdinalIgnoreCase)],
       Defaults = new PreferenceDefaults
       {
         Recursive = options.Recursive,
@@ -200,14 +240,14 @@ public static class SourceMixTuiApplication
 
     PreferencesManager.Save(fileSystem, solutionDirectory, updatedPreferences);
 
-    if (!ReferenceEquals(globalPreferences, updatedGlobalPreferences))
+    if (!ReferenceEquals(globalPreferences, wizard.GlobalPreferences))
     {
-      PreferencesManager.SaveGlobal(fileSystem, updatedGlobalPreferences);
+      PreferencesManager.SaveGlobal(fileSystem, wizard.GlobalPreferences);
     }
 
-    AnsiConsole.WriteLine();
-    AnsiConsole.MarkupLine($"[green]✓[/] Written to [bold]{Markup.Escape(options.OutputPath)}[/]");
-    AnsiConsole.MarkupLine($"  [dim]{processedSources.Count} source file(s)[/]{(decompiledSources.Count > 0 ? $"[dim], {decompiledSources.Count} decompiled type(s)[/]" : string.Empty)}");
+    ansiConsole.WriteLine();
+    ansiConsole.MarkupLine($"[green]✓[/] Written to [bold]{Markup.Escape(options.OutputPath)}[/]");
+    ansiConsole.MarkupLine($"  [dim]{processedSources.Count} source file(s)[/]{(decompiledSources.Count > 0 ? $"[dim], {decompiledSources.Count} decompiled type(s)[/]" : string.Empty)}");
 
     return 0;
   }
