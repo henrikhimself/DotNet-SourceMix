@@ -11,4 +11,6 @@ public sealed record PreferenceDefaults
   public bool IncludeCompiled { get; init; }
 
   public bool Trim { get; init; }
+
+  public bool ExpandTypes { get; init; }
 }

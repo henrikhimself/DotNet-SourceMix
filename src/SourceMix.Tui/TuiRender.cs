@@ -14,8 +14,21 @@ internal static class TuiRender
   {
     ArgumentNullException.ThrowIfNull(console);
 
-    console.Ansi.MarkupLine("[yellow]SourceMix[/]");
+    console.Ansi.MarkupLine("[yellow]SourceMix.[/]");
     console.Ansi.WriteLine();
+  }
+
+  /// <summary>
+  /// Clears the full screen and immediately restores the shared app heading.
+  /// Use this for redraw paths that wipe the terminal canvas mid-step.
+  /// </summary>
+  /// <param name="console">The TUI console to clear and redraw.</param>
+  public static void ResetScreenWithAppHeader(ITuiConsole console)
+  {
+    ArgumentNullException.ThrowIfNull(console);
+
+    console.ClearScreen();
+    WriteAppHeading(console);
   }
 
   /// <summary>

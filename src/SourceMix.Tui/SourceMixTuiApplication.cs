@@ -135,20 +135,31 @@ public static class SourceMixTuiApplication
       ansiConsole.MarkupLine($"[dim]Resolved {resolvedFiles.Count} files ({resolvedFiles.Count - selectedPaths.Count} dependencies added).[/]");
     }
 
-    var processedSources = new List<string>(resolvedFiles.Count);
+    var sourceFiles = new List<SourceFile>(resolvedFiles.Count);
 
     await ansiConsole.Progress()
       .StartAsync(async ctx =>
       {
-        var task = ctx.AddTask("[green]Processing source files[/]", maxValue: resolvedFiles.Count);
+        var task = ctx.AddTask("[green]Reading source files[/]", maxValue: resolvedFiles.Count);
 
         foreach (var filePath in resolvedFiles)
         {
           var sourceText = await fileSystem.File.ReadAllTextAsync(filePath, cancellationToken).ConfigureAwait(false);
           var isSeed = seedPathSet.Contains(filePath);
-          processedSources.Add(SourceProcessor.Process(sourceText, trim: options.Trim && !isSeed));
+          sourceFiles.Add(new SourceFile(filePath, sourceText, isSeed));
           task.Increment(1);
         }
+      }).ConfigureAwait(false);
+
+    var processedSources = new List<string>(resolvedFiles.Count);
+
+    await ansiConsole.Status()
+      .StartAsync("Processing source files...", async _ =>
+      {
+        var processed = await Task.Run(
+          () => SourceProcessor.ProcessBatch(sourceFiles, options.Trim, options.ExpandTypes),
+          cancellationToken).ConfigureAwait(false);
+        processedSources.AddRange(processed);
       }).ConfigureAwait(false);
 
     var decompiledSources = new List<string>();
@@ -235,6 +246,7 @@ public static class SourceMixTuiApplication
         MaxDepth = options.MaxDepth == int.MaxValue ? 3 : options.MaxDepth,
         IncludeCompiled = options.IncludeCompiled,
         Trim = options.Trim,
+        ExpandTypes = options.ExpandTypes,
       },
     };
 

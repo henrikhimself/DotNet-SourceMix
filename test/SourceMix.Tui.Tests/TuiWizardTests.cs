@@ -213,6 +213,7 @@ public sealed class TuiWizardTests
     Assert.True(result.Confirmed);
     Assert.NotNull(result.Options);
     Assert.False(result.Options!.Recursive);
+    Assert.False(result.Options.ExpandTypes);
     Assert.Single(result.SelectedFiles);
     Assert.Equal("/repo/Foo.cs", result.SelectedFiles[0]);
     Assert.Single(result.SelectedSkillKeys);
@@ -250,7 +251,34 @@ public sealed class TuiWizardTests
     Assert.NotNull(result.Options);
     Assert.True(result.Options!.Recursive);
     Assert.Equal(3, result.Options.MaxDepth);
+    Assert.False(result.Options.ExpandTypes);
     Assert.Empty(result.SelectedSkillKeys);
+  }
+
+  [Fact]
+  public void HappyPath_ExpandTypesOn_FlowsIntoOptions()
+  {
+    using var console = new TestTuiConsole();
+    var keys = new FakeKeyReader(
+    [
+      K(ConsoleKey.Spacebar, ' '),
+      K(ConsoleKey.Enter),
+      K(ConsoleKey.DownArrow),
+      K(ConsoleKey.DownArrow),
+      K(ConsoleKey.DownArrow),
+      K(ConsoleKey.DownArrow),
+      K(ConsoleKey.Spacebar, ' '),
+      K(ConsoleKey.Enter),
+      K(ConsoleKey.Enter),
+      K(ConsoleKey.Enter),
+      K(ConsoleKey.Enter),
+    ]);
+
+    var result = RunWizard(console, keys);
+
+    Assert.True(result.Confirmed);
+    Assert.NotNull(result.Options);
+    Assert.True(result.Options!.ExpandTypes);
   }
 
   [Fact]

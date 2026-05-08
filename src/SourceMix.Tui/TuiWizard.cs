@@ -89,6 +89,7 @@ internal static class TuiWizard
       values.MaxDepth,
       values.IncludeCompiled,
       values.Trim,
+      values.ExpandTypes,
       outputPath);
 
     return new TuiWizardResult
@@ -148,6 +149,7 @@ internal static class TuiWizard
           MaxDepth = state.Options.MaxDepth == int.MaxValue ? preferences.Defaults.MaxDepth : state.Options.MaxDepth,
           IncludeCompiled = state.Options.IncludeCompiled,
           Trim = state.Options.Trim,
+          ExpandTypes = state.Options.ExpandTypes,
         },
       };
 

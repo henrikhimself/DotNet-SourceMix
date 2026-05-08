@@ -62,6 +62,24 @@ public sealed class FileSearchPromptTests
   }
 
   [Fact]
+  public void ResizeRedraw_RestoresAppHeading()
+  {
+    var files = MakeFiles("a.cs", "b.cs");
+    using var console = new TestTuiConsole();
+    var keys = new FakeKeyReader([]);
+    keys.Enqueue(K(ConsoleKey.Spacebar, ' '));
+    keys.EnqueueIdle();
+    keys.EnqueueAction(() => console.SetWindowHeight(12));
+    keys.Enqueue(K(ConsoleKey.Enter));
+
+    var result = FileSearchPrompt.Show(files, new HashSet<string>(StringComparer.OrdinalIgnoreCase), console, keys);
+
+    Assert.Equal(new[] { Path("a.cs") }, result.SelectedPaths);
+    Assert.True(console.ClearScreenCallCount >= 1);
+    Assert.Contains("SourceMix", console.Output, StringComparison.Ordinal);
+  }
+
+  [Fact]
   public void Tab_CyclesSearch_To_Pinned_To_Selected_To_Search()
   {
     var files = MakeFiles("a.cs", "b.cs");

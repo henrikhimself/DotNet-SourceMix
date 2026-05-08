@@ -176,6 +176,7 @@ public sealed class TextInputPromptTests
     Assert.Equal("abc", text);
     Assert.True(confirmed);
     Assert.True(console.ClearScreenCallCount >= 1);
+    Assert.Contains("SourceMix", console.Output, StringComparison.Ordinal);
   }
 
   [Fact]

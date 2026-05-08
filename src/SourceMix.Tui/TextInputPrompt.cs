@@ -67,7 +67,7 @@ internal static class TextInputPrompt
       {
         // Window resize detected. Wipe the screen so a redraw at a different
         // height can't leave residue from the previous frame's wrap rows.
-        console.ClearScreen();
+        TuiRender.ResetScreenWithAppHeader(console);
         continue;
       }
 

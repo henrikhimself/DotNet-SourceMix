@@ -10,6 +10,7 @@ internal static class OptionsPrompt
   private const string LimitDepthKey = "limit-depth";
   private const string IncludeCompiledKey = "include-compiled";
   private const string TrimKey = "trim";
+  private const string ExpandTypesKey = "expand-types";
 
   internal static OptionsPromptResult Show(
     SolutionPreferences preferences,
@@ -42,6 +43,11 @@ internal static class OptionsPrompt
     if (defaults.Trim)
     {
       toggles.Add(TrimKey);
+    }
+
+    if (defaults.ExpandTypes)
+    {
+      toggles.Add(ExpandTypesKey);
     }
 
     var maxDepth = defaults.MaxDepth > 0 ? defaults.MaxDepth : 3;
@@ -89,9 +95,10 @@ internal static class OptionsPrompt
       var effectiveMaxDepth = recursiveOn && toggles.Contains(LimitDepthKey) ? maxDepth : int.MaxValue;
       var effectiveIncludeCompiled = recursiveOn && toggles.Contains(IncludeCompiledKey);
       var effectiveTrim = recursiveOn && toggles.Contains(TrimKey);
+      var expandTypes = toggles.Contains(ExpandTypesKey);
 
       return new OptionsPromptResult(
-        new OptionsToggleValues(recursiveOn, effectiveMaxDepth, effectiveIncludeCompiled, effectiveTrim),
+        new OptionsToggleValues(recursiveOn, effectiveMaxDepth, effectiveIncludeCompiled, effectiveTrim, expandTypes),
         StepResult.Confirm);
     }
   }
@@ -105,6 +112,7 @@ internal static class OptionsPrompt
       new(LimitDepthKey, limitDepthLabel),
       new(IncludeCompiledKey, "Decompile interfaces and models from compiled assemblies"),
       new(TrimKey, "Trim method bodies from dependency files (keep signatures only)"),
+      new(ExpandTypesKey, "Expand var and target-typed new() to inferred types"),
     };
 
     var picker = new ListPickerPrompt<ToggleItem>

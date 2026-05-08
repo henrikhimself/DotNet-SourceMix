@@ -4,4 +4,5 @@ internal sealed record OptionsToggleValues(
   bool Recursive,
   int MaxDepth,
   bool IncludeCompiled,
-  bool Trim);
+  bool Trim,
+  bool ExpandTypes);

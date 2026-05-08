@@ -101,7 +101,8 @@ internal sealed class ListPickerPrompt<T>
         }
       }
 
-      var maxVisible = Math.Max(5, console.WindowHeight - 6);
+      const int ReservedRows = 10;
+      var maxVisible = Math.Max(5, console.WindowHeight - ReservedRows);
 
       if (current.Count > 0)
       {
@@ -152,7 +153,7 @@ internal sealed class ListPickerPrompt<T>
       {
         // Window resize detected. Wipe the screen so a redraw at a different
         // height can't leave residue from the previous frame's wrap rows.
-        console.ClearScreen();
+        TuiRender.ResetScreenWithAppHeader(console);
         continue;
       }
 
@@ -303,7 +304,7 @@ internal sealed class ListPickerPrompt<T>
               scroll = 0;
             }
 
-            console.ClearScreen();
+            TuiRender.ResetScreenWithAppHeader(console);
           }
 
           break;

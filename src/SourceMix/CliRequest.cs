@@ -7,5 +7,6 @@ internal sealed record CliRequest(
   int Depth,
   bool IncludeCompiled,
   bool Trim,
+  bool ExpandTypes,
   string? Prompt,
   string[] SkillKeys);

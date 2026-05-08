@@ -9,6 +9,7 @@ namespace Hj.SourceMix.Benchmarks;
 public class SourceProcessorBenchmarks
 #pragma warning restore CA1515 // Consider making public types internal
 {
+  private IReadOnlyList<SourceFile> _files = [];
   private string _source = string.Empty;
 
   [Params("small", "medium", "large")]
@@ -16,6 +17,9 @@ public class SourceProcessorBenchmarks
 
   [Params(false, true)]
   public bool Trim { get; set; }
+
+  [Params(false, true)]
+  public bool ExpandTypes { get; set; }
 
   [GlobalSetup]
   public void Setup()
@@ -26,10 +30,12 @@ public class SourceProcessorBenchmarks
       "medium" => GenerateMediumSource(),
       _ => GenerateLargeSource(),
     };
+
+    _files = [new SourceFile("Benchmark.cs", _source, true)];
   }
 
   [Benchmark]
-  public object Process() => SourceProcessor.Process(_source, Trim);
+  public object ProcessBatch() => SourceProcessor.ProcessBatch(_files, Trim, ExpandTypes);
 
   private static string GenerateSmallSource()
   {

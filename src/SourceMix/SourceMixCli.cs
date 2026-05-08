@@ -42,14 +42,16 @@ internal static class SourceMixCli
       }
     }
 
-    var processedSources = new List<string>(resolvedFiles.Count);
+    var sourceFiles = new List<SourceFile>(resolvedFiles.Count);
 
     foreach (var filePath in resolvedFiles)
     {
       var sourceText = await fileSystemToUse.File.ReadAllTextAsync(filePath, cancellationToken).ConfigureAwait(false);
       var isSeed = seedPathSet.Contains(filePath);
-      processedSources.Add(SourceProcessor.Process(sourceText, trim: request.Trim && !isSeed));
+      sourceFiles.Add(new SourceFile(filePath, sourceText, isSeed));
     }
+
+    var processedSources = SourceProcessor.ProcessBatch(sourceFiles, request.Trim, request.ExpandTypes);
 
     var decompiledSources = new List<string>();
 

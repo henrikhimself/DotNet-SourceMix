@@ -58,8 +58,7 @@ internal static class FileSearchPrompt
             ViewMode.Pinned => ViewMode.Selected,
             _ => ViewMode.Search,
           };
-          tuiConsole.ClearScreen();
-          TuiRender.WriteAppHeading(tuiConsole);
+          TuiRender.ResetScreenWithAppHeader(tuiConsole);
           break;
 
         default:
@@ -77,7 +76,7 @@ internal static class FileSearchPrompt
   {
     var picker = new ListPickerPrompt<CsFile>
     {
-      Header = "[bold underline]Search[/]  [dim]Pinned (P)[/]  [dim]Selected (S)[/]  [dim](Tab \u00b7 Space select/deselect \u00b7 Ctrl+P pin/unpin \u00b7 Ctrl+U clear search \u00b7 Enter confirm \u00b7 Ctrl+Q quit)[/]",
+      Header = "[bold underline]Search[/]  [dim]Pinned[/]  [dim]Selected[/]  [dim](Tab \u00b7 Space select/deselect \u00b7 Ctrl+P pin/unpin \u00b7 Ctrl+U clear search \u00b7 Enter confirm \u00b7 Ctrl+Q quit)[/]",
       Items = files,
       KeySelector = static f => f.FullPath,
       MultiSelect = true,
@@ -107,7 +106,7 @@ internal static class FileSearchPrompt
 
     var picker = new ListPickerPrompt<CsFile>
     {
-      Header = "[dim]Search[/]  [bold underline]Pinned (P)[/]  [dim]Selected (S)[/]  [dim](Tab \u00b7 Ctrl+P unpin/pin \u00b7 Enter confirm \u00b7 Ctrl+Q quit)[/]",
+      Header = "[dim]Search[/]  [bold underline]Pinned[/]  [dim]Selected[/]  [dim](Tab \u00b7 Ctrl+P unpin/pin \u00b7 Enter confirm \u00b7 Ctrl+Q quit)[/]",
       Items = pinnedList,
       KeySelector = static f => f.FullPath,
       MultiSelect = true,
@@ -136,7 +135,7 @@ internal static class FileSearchPrompt
 
     var picker = new ListPickerPrompt<CsFile>
     {
-      Header = "[dim]Search[/]  [dim]Pinned (P)[/]  [bold underline]Selected (S)[/]  [dim](Tab \u00b7 Space deselect/select \u00b7 Ctrl+P pin/unpin \u00b7 Enter confirm \u00b7 Ctrl+Q quit)[/]",
+      Header = "[dim]Search[/]  [dim]Pinned[/]  [bold underline]Selected[/]  [dim](Tab \u00b7 Space deselect/select \u00b7 Ctrl+P pin/unpin \u00b7 Enter confirm \u00b7 Ctrl+Q quit)[/]",
       Items = selectedList,
       KeySelector = static f => f.FullPath,
       MultiSelect = true,

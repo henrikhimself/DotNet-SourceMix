@@ -24,6 +24,7 @@ public sealed class OptionsPromptTests
     Assert.True(result.Values!.Recursive);
     Assert.False(result.Values.IncludeCompiled);
     Assert.False(result.Values.Trim);
+    Assert.False(result.Values.ExpandTypes);
   }
 
   [Fact]
@@ -39,6 +40,7 @@ public sealed class OptionsPromptTests
     Assert.Equal(StepResult.Confirm, result.Step);
     Assert.False(result.Values!.Recursive);
     Assert.Equal(int.MaxValue, result.Values.MaxDepth);
+    Assert.False(result.Values.ExpandTypes);
   }
 
   [Fact]
@@ -157,10 +159,11 @@ public sealed class OptionsPromptTests
         MaxDepth = 5,
         IncludeCompiled = true,
         Trim = true,
+        ExpandTypes = true,
       },
     };
 
-    // Toggles: Enter (accept all four pre-set toggles).
+    // Toggles: Enter (accept all pre-set toggles).
     // MaxDepth: Enter (accept default 5 from prefs).
     var keys = new FakeKeyReader(
     [
@@ -175,6 +178,30 @@ public sealed class OptionsPromptTests
     Assert.Equal(5, result.Values.MaxDepth);
     Assert.True(result.Values.IncludeCompiled);
     Assert.True(result.Values.Trim);
+    Assert.True(result.Values.ExpandTypes);
+  }
+
+  [Fact]
+  public void Toggle_ExpandTypes_FlowsIntoResult()
+  {
+    using var console = new TestTuiConsole();
+    var prefs = new SolutionPreferences();
+
+    var keys = new FakeKeyReader(
+    [
+      K(ConsoleKey.DownArrow),
+      K(ConsoleKey.DownArrow),
+      K(ConsoleKey.DownArrow),
+      K(ConsoleKey.DownArrow),
+      K(ConsoleKey.Spacebar, ' '),
+      K(ConsoleKey.Enter),
+    ]);
+
+    var result = OptionsPrompt.Show(prefs, console, keys);
+
+    Assert.Equal(StepResult.Confirm, result.Step);
+    Assert.NotNull(result.Values);
+    Assert.True(result.Values!.ExpandTypes);
   }
 
   [Fact]

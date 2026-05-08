@@ -51,6 +51,11 @@ internal static class SourceMixCommandFactory
       Description = "Strip method bodies from dependency files, keeping type signatures only. Requires --recursive.",
     };
 
+    var expandTypesOption = new Option<bool>("--expand-types", "-e")
+    {
+      Description = "Replace 'var' with inferred types and expand target-typed new() to include the type. Anonymous and unresolved cases are left unchanged.",
+    };
+
     var promptOption = new Option<string?>("--prompt", "-p")
     {
       Description = "Append a prompt personality to the output. Use a built-in key (nunit-test, xunit-test, code-review, tech-docs, explain, debug, refactor, architecture) or provide custom text.",
@@ -71,6 +76,7 @@ internal static class SourceMixCommandFactory
       depthOption,
       includeCompiledOption,
       trimOption,
+      expandTypesOption,
       promptOption,
       skillsOption,
     };
@@ -84,6 +90,7 @@ internal static class SourceMixCommandFactory
           parseResult.GetValue(depthOption),
           parseResult.GetValue(includeCompiledOption),
           parseResult.GetValue(trimOption),
+          parseResult.GetValue(expandTypesOption),
           parseResult.GetValue(promptOption),
           parseResult.GetValue(skillsOption) ?? []),
         cancellationToken));

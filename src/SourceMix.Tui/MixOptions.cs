@@ -5,4 +5,5 @@ internal sealed record MixOptions(
   int MaxDepth,
   bool IncludeCompiled,
   bool Trim,
+  bool ExpandTypes,
   string OutputPath);

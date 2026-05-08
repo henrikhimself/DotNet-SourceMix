@@ -36,7 +36,7 @@ public sealed class SourceMixCommandFactoryTests
       _ => Task.FromResult(44));
 
     var exitCode = await command
-      .Parse(["Foo.cs", "-o", "context.md", "-r", "-d", "3", "-c", "-t", "-p", "code-review", "-s", "arch", "tests"])
+      .Parse(["Foo.cs", "-o", "context.md", "-r", "-d", "3", "-c", "-t", "-e", "-p", "code-review", "-s", "arch", "tests"])
       .InvokeAsync();
 
     Assert.Equal(33, exitCode);
@@ -47,6 +47,7 @@ public sealed class SourceMixCommandFactoryTests
     Assert.Equal(3, cliRequest.Depth);
     Assert.True(cliRequest.IncludeCompiled);
     Assert.True(cliRequest.Trim);
+    Assert.True(cliRequest.ExpandTypes);
     Assert.Equal("code-review", cliRequest.Prompt);
     Assert.Equal(["arch", "tests"], cliRequest.SkillKeys);
   }
