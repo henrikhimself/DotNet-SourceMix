@@ -7,27 +7,10 @@ SourceMix turns selected C# source files into a single Markdown context file tha
 
 The tool can include just the files you select, or expand outward to referenced source types, optional decompiled dependency types, reusable skills, and a final prompt block.
 
-<div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
-  <figure style="margin: 0; padding: 0; text-align: center;">
-      <img src="assets/tui-screenshot-1.png" alt="File selection screen" style="max-width: 100%; height: auto; margin: 0;" width="600" />
-      <figcaption style="margin-top: 6px;">The SourceMix TUI showing the file selection screen.</figcaption>
-  </figure>
-  <figure style="margin: 0; padding: 0; text-align: center;">
-    <img src="assets/tui-screenshot-2.png" alt="Output file configuration screen" style="max-width: 100%; height: auto; margin: 0;" width="600" />
-    <figcaption style="margin-top: 6px;">The SourceMix TUI showing the output file configuration screen.</figcaption>
-  </figure>
-</div>
-<br/>
-<div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
-  <figure style="margin: 0; padding: 0; text-align: center;">
-      <img src="assets/tui-screenshot-3.png" alt="Prompt personality screen" style="max-width: 100%; height: auto; margin: 0;" width="600" />
-      <figcaption style="margin-top: 6px;">The SourceMix TUI showing the prompt personality screen.</figcaption>
-  </figure>
-  <figure style="margin: 0; padding: 0; text-align: center;">
-    <img src="assets/tui-screenshot-4.png" alt="Skills selection screen" style="max-width: 100%; height: auto; margin: 0;" width="600" />
-    <figcaption style="margin-top: 6px;">The SourceMix TUI showing the skills selection screen.</figcaption>
-  </figure>
-</div>
+<img src="assets/tui-screenshot-1.png" alt="File selection screen" style="max-width: 100%; height: auto; margin: 0;" width="600" />
+<img src="assets/tui-screenshot-2.png" alt="Output file configuration screen" style="max-width: 100%; height: auto; margin: 0;" width="600" />
+<img src="assets/tui-screenshot-3.png" alt="Prompt personality screen" style="max-width: 100%; height: auto; margin: 0;" width="600" />
+<img src="assets/tui-screenshot-4.png" alt="Skills selection screen" style="max-width: 100%; height: auto; margin: 0;" width="600" />
 
 ## Install
 
