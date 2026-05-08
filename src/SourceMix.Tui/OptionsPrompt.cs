@@ -1,3 +1,4 @@
+using System.Globalization;
 using Hj.SourceMix.Core;
 using Spectre.Console;
 
@@ -5,77 +6,161 @@ namespace Hj.SourceMix.Tui;
 
 internal static class OptionsPrompt
 {
-  internal static MixOptions Show(SolutionPreferences preferences)
+  private const string RecursiveKey = "recursive";
+  private const string LimitDepthKey = "limit-depth";
+  private const string IncludeCompiledKey = "include-compiled";
+  private const string TrimKey = "trim";
+  private const string ExpandTypesKey = "expand-types";
+
+  internal static OptionsPromptResult Show(
+    SolutionPreferences preferences,
+    ITuiConsole? tuiConsole = null,
+    IKeyReader? keys = null)
   {
-    AnsiConsole.MarkupLine("[bold]Configure options[/]");
-    AnsiConsole.WriteLine();
+    ArgumentNullException.ThrowIfNull(preferences);
+
+    tuiConsole ??= new SystemTuiConsole();
+    keys ??= new ConsoleKeyReader();
 
     var defaults = preferences.Defaults;
+    var toggles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-    var recursive = new ConfirmationPrompt("Include [darkorange]recursive[/] type dependencies?")
+    if (defaults.Recursive)
     {
-      DefaultValue = defaults.Recursive,
-    }
-    .ChoicesStyle(new Style(Color.DarkOrange))
-    .Show(AnsiConsole.Console);
-
-    var maxDepth = int.MaxValue;
-    var includeCompiled = false;
-    var trim = false;
-
-    if (recursive)
-    {
-      var limitDepth = new ConfirmationPrompt("  Limit recursion [darkorange]depth[/]?")
-      {
-        DefaultValue = defaults.LimitDepth,
-      }
-      .ChoicesStyle(new Style(Color.DarkOrange))
-      .Show(AnsiConsole.Console);
-
-      if (limitDepth)
-      {
-        maxDepth = AnsiConsole.Prompt(
-          new TextPrompt<int>("  Max depth:")
-            .DefaultValue(defaults.MaxDepth)
-            .Validate(static d => d > 0
-              ? ValidationResult.Success()
-              : ValidationResult.Error("[red]Depth must be greater than 0.[/]")));
-      }
-
-      includeCompiled = new ConfirmationPrompt(
-        "  [darkorange]Decompile[/] interfaces and models from compiled assemblies ([dim]requires dotnet build[/])?")
-      {
-        DefaultValue = defaults.IncludeCompiled,
-      }
-      .ChoicesStyle(new Style(Color.DarkOrange))
-      .Show(AnsiConsole.Console);
-
-      trim = new ConfirmationPrompt(
-        "  [darkorange]Trim[/] method bodies from dependency files ([dim]keep signatures only[/])?")
-      {
-        DefaultValue = defaults.Trim,
-      }
-      .ChoicesStyle(new Style(Color.DarkOrange))
-      .Show(AnsiConsole.Console);
+      toggles.Add(RecursiveKey);
     }
 
-    var defaultOutput = preferences.OutputPath
-      ?? Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        "sourcemix.md");
+    if (defaults.LimitDepth)
+    {
+      toggles.Add(LimitDepthKey);
+    }
 
-    var outputPath = AnsiConsole.Prompt(
-      new TextPrompt<string>("Output file:")
-        .DefaultValue(defaultOutput)
-        .Validate(static path =>
+    if (defaults.IncludeCompiled)
+    {
+      toggles.Add(IncludeCompiledKey);
+    }
+
+    if (defaults.Trim)
+    {
+      toggles.Add(TrimKey);
+    }
+
+    if (defaults.ExpandTypes)
+    {
+      toggles.Add(ExpandTypesKey);
+    }
+
+    var maxDepth = defaults.MaxDepth > 0 ? defaults.MaxDepth : 3;
+
+    while (true)
+    {
+      var togglesResult = ShowToggles(toggles, maxDepth, tuiConsole, keys);
+
+      if (togglesResult == StepResult.Back)
+      {
+        return new OptionsPromptResult(null, StepResult.Back);
+      }
+
+      if (togglesResult == StepResult.Quit)
+      {
+        return new OptionsPromptResult(null, StepResult.Quit);
+      }
+
+      if (toggles.Contains(RecursiveKey) && toggles.Contains(LimitDepthKey))
+      {
+        var (depthText, depthOk, depthQuit) = TextInputPrompt.Read(
+          "  Max depth for 'Limit recursion depth':",
+          maxDepth.ToString(CultureInfo.InvariantCulture),
+          tuiConsole,
+          keys,
+          static t => int.TryParse(t, NumberStyles.Integer, CultureInfo.InvariantCulture, out var d) && d > 0
+            ? null
+            : "Depth must be a positive integer.");
+
+        if (depthQuit)
         {
-          var dir = Path.GetDirectoryName(path);
+          return new OptionsPromptResult(null, StepResult.Quit);
+        }
 
-          return string.IsNullOrEmpty(dir) || Directory.Exists(dir)
-            ? ValidationResult.Success()
-            : ValidationResult.Error($"[red]Directory does not exist: {Markup.Escape(dir)}[/]");
-        }));
+        if (!depthOk)
+        {
+          tuiConsole.ClearLines(1);
+          continue;
+        }
 
-    return new MixOptions(recursive, maxDepth, includeCompiled, trim, outputPath);
+        maxDepth = int.Parse(depthText, NumberStyles.Integer, CultureInfo.InvariantCulture);
+      }
+
+      var recursiveOn = toggles.Contains(RecursiveKey);
+      var effectiveMaxDepth = recursiveOn && toggles.Contains(LimitDepthKey) ? maxDepth : int.MaxValue;
+      var effectiveIncludeCompiled = recursiveOn && toggles.Contains(IncludeCompiledKey);
+      var effectiveTrim = recursiveOn && toggles.Contains(TrimKey);
+      var expandTypes = toggles.Contains(ExpandTypesKey);
+
+      return new OptionsPromptResult(
+        new OptionsToggleValues(recursiveOn, effectiveMaxDepth, effectiveIncludeCompiled, effectiveTrim, expandTypes),
+        StepResult.Confirm);
+    }
   }
+
+  private static StepResult ShowToggles(HashSet<string> toggles, int maxDepth, ITuiConsole console, IKeyReader keys)
+  {
+    var limitDepthLabel = $"  Limit recursion depth (uses 'Max depth' = {maxDepth.ToString(CultureInfo.InvariantCulture)})";
+    var items = new List<ToggleItem>
+    {
+      new(RecursiveKey, "Include recursive type dependencies"),
+      new(LimitDepthKey, limitDepthLabel),
+      new(IncludeCompiledKey, "Decompile interfaces and models from compiled assemblies"),
+      new(TrimKey, "Trim method bodies from dependency files (keep signatures only)"),
+      new(ExpandTypesKey, "Expand var and target-typed new() to inferred types"),
+    };
+
+    var picker = new ListPickerPrompt<ToggleItem>
+    {
+      Header = "[bold]Configure options[/]  [dim](Space toggle \u00b7 Enter confirm \u00b7 Ctrl+Q back)[/]",
+      Items = items,
+      KeySelector = static i => i.Key,
+      MultiSelect = true,
+      AllowPin = false,
+      InitialSelected = toggles,
+      Renderer = RenderToggle,
+    };
+
+    var result = picker.Show(console, keys);
+
+    if (result.Reason == ListPickerExitReason.Skipped)
+    {
+      return StepResult.Back;
+    }
+
+    if (result.Reason == ListPickerExitReason.Quit)
+    {
+      return StepResult.Quit;
+    }
+
+    toggles.Clear();
+
+    if (result.SelectedKeys is { } selectedKeys)
+    {
+      foreach (var key in selectedKeys)
+      {
+        toggles.Add(key);
+      }
+    }
+
+    return StepResult.Confirm;
+  }
+
+  private static string RenderToggle(ToggleItem item, ListPickerItemState state)
+  {
+    var arrow = state.IsCursor ? "[darkorange]>[/]" : " ";
+    var checkbox = state.IsSelected ? "[green][[x]][/]" : "[dim][[ ]][/]";
+    var label = state.IsCursor
+      ? $"[bold]{Markup.Escape(item.Display)}[/]"
+      : $"[dim]{Markup.Escape(item.Display)}[/]";
+
+    return $" {arrow} {checkbox} {label}";
+  }
+
+  private sealed record ToggleItem(string Key, string Display);
 }

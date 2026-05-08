@@ -7,6 +7,11 @@ SourceMix turns selected C# source files into a single Markdown context file tha
 
 The tool can include just the files you select, or expand outward to referenced source types, optional decompiled dependency types, reusable skills, and a final prompt block.
 
+<img src="assets/tui-screenshot-1.png" alt="File selection screen" style="max-width: 100%; height: auto; margin: 0;" width="600" />
+<img src="assets/tui-screenshot-2.png" alt="Output file configuration screen" style="max-width: 100%; height: auto; margin: 0;" width="600" />
+<img src="assets/tui-screenshot-3.png" alt="Prompt personality screen" style="max-width: 100%; height: auto; margin: 0;" width="600" />
+<img src="assets/tui-screenshot-4.png" alt="Skills selection screen" style="max-width: 100%; height: auto; margin: 0;" width="600" />
+
 ## Install
 
 Install the tool globally from NuGet:
@@ -54,7 +59,7 @@ sourcemix tui
 ### Wizard flow
 
 1. **Search and select files** — type to filter `.cs` files by name in real time, move with `↑↓`, toggle with `Space`, pin with `Ctrl+P`, confirm with `Enter`, and switch views with `Tab`.
-2. **Configure options** — choose recursive dependency resolution, optional depth limiting, decompilation of compiled types, and whether dependency method bodies should be trimmed.
+2. **Configure options** — choose recursive dependency resolution, optional depth limiting, decompilation of compiled types, whether dependency method bodies should be trimmed, and whether `var` / target-typed `new()` should be expanded to inferred types.
 3. **Select prompt** — optionally append a built-in or custom prompt to the generated output.
 4. **Select skills** — optionally prepend one or more `SKILL.md` instruction files.
 5. **Generate** — write the final Markdown output and persist your preferences for the next run.
@@ -64,7 +69,7 @@ sourcemix tui
 ## CLI usage
 
 ```bash
-sourcemix [<files>...] [--output <path>] [--recursive] [--depth <n>] [--include-compiled]
+sourcemix [<files>...] [--output <path>] [--recursive] [--depth <n>] [--include-compiled] [--trim] [--expand-types]
 ```
 
 ### Arguments
@@ -78,6 +83,7 @@ sourcemix [<files>...] [--output <path>] [--recursive] [--depth <n>] [--include-
 - `-d`, `--depth <n>` — limit recursion depth when `--recursive` is used
 - `-c`, `--include-compiled` — decompile unresolved referenced interfaces/models from compiled assemblies; requires `--recursive`
 - `-t`, `--trim` — trim dependency method bodies while keeping signatures; requires `--recursive`
+- `-e`, `--expand-types` — replace `var` with the inferred type and expand target-typed `new()` to include the type; anonymous types, tuple deconstruction, and unresolved cases are left unchanged
 - `-p`, `--prompt <name-or-text>` — append a built-in prompt key or custom prompt text
 - `-s`, `--skills <key>...` — prepend one or more skills by key
 
@@ -106,6 +112,9 @@ sourcemix MyService.cs -r -c -o context.md
 
 # Trim dependency bodies and append an xUnit-focused prompt
 sourcemix MyService.cs -r -t --prompt xunit-test -o context.md
+
+# Expand inferred types before writing the context file
+sourcemix MyService.cs -r -e -o context.md
 
 # Add skills plus a code review prompt
 sourcemix MyService.cs -r -t --skills unit-test-style architecture-rules --prompt code-review -o context.md

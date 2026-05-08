@@ -11,7 +11,7 @@ public sealed class SourceMixCliTests
     using var errorWriter = new StringWriter();
 
     var exitCode = await SourceMixCli.RunAsync(
-      new CliRequest(["Foo.cs"], null, false, int.MaxValue, false, true, null, []),
+      new CliRequest(["Foo.cs"], null, false, int.MaxValue, false, true, false, null, []),
       fileSystem,
       "/workspace",
       TextWriter.Null,
@@ -28,7 +28,7 @@ public sealed class SourceMixCliTests
     using var errorWriter = new StringWriter();
 
     var exitCode = await SourceMixCli.RunAsync(
-      new CliRequest(["Foo.cs"], null, false, int.MaxValue, true, false, null, []),
+      new CliRequest(["Foo.cs"], null, false, int.MaxValue, true, false, false, null, []),
       fileSystem,
       "/workspace",
       TextWriter.Null,
@@ -45,7 +45,7 @@ public sealed class SourceMixCliTests
     using var errorWriter = new StringWriter();
 
     var exitCode = await SourceMixCli.RunAsync(
-      new CliRequest(["Foo.cs"], new FileInfo("/workspace/missing/context.md"), false, int.MaxValue, false, false, null, []),
+      new CliRequest(["Foo.cs"], new FileInfo("/workspace/missing/context.md"), false, int.MaxValue, false, false, false, null, []),
       fileSystem,
       "/workspace",
       TextWriter.Null,

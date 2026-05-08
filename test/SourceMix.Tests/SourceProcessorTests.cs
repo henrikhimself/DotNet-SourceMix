@@ -149,4 +149,28 @@ public sealed class SourceProcessorTests
 
     Assert.Equal(string.Empty, result);
   }
+
+  [Fact]
+  public void ProcessBatch_WhenExpandTypesIsFalse_MatchesLegacyProcessing()
+  {
+    var source = """
+      using System;
+
+      namespace MyApp;
+
+      public class Foo
+      {
+        public int GetValue()
+        {
+          var x = 1;
+          return x;
+        }
+      }
+      """;
+
+    var legacy = SourceProcessor.Process(source);
+    var batch = SourceProcessor.ProcessBatch([new SourceFile("Foo.cs", source, true)], expandTypes: false)[0];
+
+    Assert.Equal(legacy, batch);
+  }
 }

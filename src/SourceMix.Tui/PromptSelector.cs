@@ -5,110 +5,220 @@ namespace Hj.SourceMix.Tui;
 
 internal static class PromptSelector
 {
-  private const string SkipLabel = "(none — skip prompt)";
-  private const string NewLabel = "+ New custom prompt";
+  private const string SkipKey = "__skip__";
+  private const string NewKey = "__new__";
 
-  internal static (string? PromptText, string? PromptKey, GlobalPreferences Preferences) Show(
-    GlobalPreferences globalPreferences,
-    string? defaultPromptKey)
+  private enum EntryKind
   {
-    AnsiConsole.MarkupLine("[bold]Select a prompt personality[/] [dim](optional)[/]");
-    AnsiConsole.WriteLine();
+    /// <summary>The "(none)" sentinel entry.</summary>
+    Skip,
 
-    var (choices, labelToKey) = BuildChoices(globalPreferences, defaultPromptKey);
+    /// <summary>A built-in prompt personality.</summary>
+    BuiltIn,
 
-    var selection = AnsiConsole.Prompt(
-      new SelectionPrompt<string>()
-        .PageSize(12)
-        .HighlightStyle(new Style(Color.DarkOrange))
-        .AddChoices([.. choices.Keys]));
+    /// <summary>A user-defined custom prompt.</summary>
+    Custom,
 
-    if (selection == SkipLabel)
-    {
-      return (null, null, globalPreferences);
-    }
-
-    if (selection == NewLabel)
-    {
-      return CreateCustomPrompt(globalPreferences);
-    }
-
-    return (choices[selection], labelToKey[selection], globalPreferences);
+    /// <summary>The "+ New custom prompt" sentinel entry.</summary>
+    New,
   }
 
-  private static (Dictionary<string, string> Choices, Dictionary<string, string> LabelToKey) BuildChoices(
+  internal static PromptSelectorResult Show(
     GlobalPreferences globalPreferences,
-    string? defaultPromptKey)
+    string? defaultPromptKey,
+    ITuiConsole? tuiConsole = null,
+    IKeyReader? keys = null)
   {
-    var allEntries = new List<(string Label, string Text, string Key)>();
+    ArgumentNullException.ThrowIfNull(globalPreferences);
+
+    tuiConsole ??= new SystemTuiConsole();
+    keys ??= new ConsoleKeyReader();
+
+    var currentPrefs = globalPreferences;
+    var entries = BuildEntries(currentPrefs);
+
+    var picker = new ListPickerPrompt<PromptEntry>
+    {
+      Header = "[bold]Select a prompt personality[/]  [dim](Enter confirm \u00b7 Ctrl+D delete custom \u00b7 Ctrl+Q back)[/]",
+      Items = entries,
+      KeySelector = static e => e.Key,
+      MultiSelect = false,
+      AllowPin = false,
+      Renderer = RenderRow,
+      InitialCursorKey = defaultPromptKey,
+      ItemsSource = () => BuildEntries(currentPrefs),
+      DeleteHandler = (entry, console, keyReader) =>
+      {
+        if (entry.Kind != EntryKind.Custom)
+        {
+          return ListPickerDeleteResult.NotApplicable;
+        }
+
+        var (confirmed, quit) = ConfirmDelete(entry.Display, console, keyReader);
+
+        if (quit || !confirmed)
+        {
+          return ListPickerDeleteResult.Cancelled;
+        }
+
+        var updatedPrompts = new Dictionary<string, string>(
+          currentPrefs.CustomPrompts,
+          StringComparer.OrdinalIgnoreCase);
+        updatedPrompts.Remove(entry.Key);
+        currentPrefs = currentPrefs with { CustomPrompts = updatedPrompts };
+
+        return ListPickerDeleteResult.Removed;
+      },
+    };
+
+    var result = picker.Show(tuiConsole, keys);
+
+    if (result.Reason == ListPickerExitReason.Skipped)
+    {
+      return new PromptSelectorResult(null, null, currentPrefs, StepResult.Back);
+    }
+
+    if (result.Reason == ListPickerExitReason.Quit)
+    {
+      return new PromptSelectorResult(null, null, currentPrefs, StepResult.Quit);
+    }
+
+    if (result.Selected.Count == 0)
+    {
+      return new PromptSelectorResult(null, null, currentPrefs, StepResult.Back);
+    }
+
+    var entry = result.Selected[0];
+
+    if (entry.Key == SkipKey)
+    {
+      return new PromptSelectorResult(null, null, currentPrefs, StepResult.Confirm);
+    }
+
+    if (entry.Key == NewKey)
+    {
+      return CreateCustomPrompt(currentPrefs, defaultPromptKey, tuiConsole, keys);
+    }
+
+    return new PromptSelectorResult(entry.Text, entry.Key, currentPrefs, StepResult.Confirm);
+  }
+
+  private static (bool Confirmed, bool Quit) ConfirmDelete(string displayName, ITuiConsole console, IKeyReader keys)
+  {
+    var (text, ok, quit) = TextInputPrompt.Read(
+      $"Delete custom prompt '{displayName}'? Type 'y' to confirm:",
+      string.Empty,
+      console,
+      keys);
+
+    if (quit)
+    {
+      return (false, true);
+    }
+
+    if (!ok)
+    {
+      return (false, false);
+    }
+
+    return (string.Equals(text.Trim(), "y", StringComparison.OrdinalIgnoreCase), false);
+  }
+
+  private static List<PromptEntry> BuildEntries(GlobalPreferences globalPreferences)
+  {
+    var allEntries = new List<PromptEntry>
+    {
+      new(SkipKey, "(none — skip prompt)", string.Empty, EntryKind.Skip),
+    };
 
     foreach (var (key, prompt) in BuiltInPrompts.All)
     {
-      allEntries.Add(($"{prompt.DisplayName}  [[{key}]]", prompt.Text, key));
+      allEntries.Add(new PromptEntry(key, prompt.DisplayName, prompt.Text, EntryKind.BuiltIn));
     }
 
     foreach (var (name, text) in globalPreferences.CustomPrompts)
     {
-      allEntries.Add(($"{name}  [[custom]]", text, name));
+      allEntries.Add(new PromptEntry(name, name, text, EntryKind.Custom));
     }
 
-    if (defaultPromptKey is not null)
-    {
-      var defaultIndex = allEntries.FindIndex(e =>
-        string.Equals(e.Key, defaultPromptKey, StringComparison.OrdinalIgnoreCase));
+    allEntries.Add(new PromptEntry(NewKey, "+ New custom prompt", string.Empty, EntryKind.New));
 
-      if (defaultIndex > 0)
-      {
-        var defaultEntry = allEntries[defaultIndex];
-        allEntries.RemoveAt(defaultIndex);
-        allEntries.Insert(0, defaultEntry);
-      }
-    }
-
-    var choices = new Dictionary<string, string>(StringComparer.Ordinal)
-    {
-      [SkipLabel] = string.Empty,
-    };
-
-    var labelToKey = new Dictionary<string, string>(StringComparer.Ordinal);
-
-    foreach (var (label, text, key) in allEntries)
-    {
-      choices[label] = text;
-      labelToKey[label] = key;
-    }
-
-    choices[NewLabel] = string.Empty;
-
-    return (choices, labelToKey);
+    return allEntries;
   }
 
-  private static (string? PromptText, string? PromptKey, GlobalPreferences Preferences) CreateCustomPrompt(
-    GlobalPreferences globalPreferences)
+  private static string RenderRow(PromptEntry entry, ListPickerItemState state)
   {
-    AnsiConsole.WriteLine();
-
-    var name = AnsiConsole.Prompt(
-      new TextPrompt<string>("Prompt name:")
-        .Validate(static n => !string.IsNullOrWhiteSpace(n)
-          ? ValidationResult.Success()
-          : ValidationResult.Error("[red]Name cannot be empty.[/]")));
-
-    var text = AnsiConsole.Prompt(
-      new TextPrompt<string>("Prompt text:")
-        .Validate(static t => !string.IsNullOrWhiteSpace(t)
-          ? ValidationResult.Success()
-          : ValidationResult.Error("[red]Prompt text cannot be empty.[/]")));
-
-    var updatedPrompts = new Dictionary<string, string>(
-      globalPreferences.CustomPrompts,
-      StringComparer.OrdinalIgnoreCase)
+    var arrow = state.IsCursor ? "[darkorange]>[/]" : " ";
+    var label = state.IsCursor
+      ? $"[bold]{Markup.Escape(entry.Display)}[/]"
+      : $"[dim]{Markup.Escape(entry.Display)}[/]";
+    var suffix = entry.Kind switch
     {
-      [name.Trim()] = text.Trim(),
+      EntryKind.BuiltIn => $"  [dim][[{Markup.Escape(entry.Key)}]][/]",
+      EntryKind.Custom => "  [dim][[custom]][/]",
+      _ => string.Empty,
     };
 
-    var updatedPreferences = globalPreferences with { CustomPrompts = updatedPrompts };
-
-    return (text.Trim(), name.Trim(), updatedPreferences);
+    return $" {arrow} {label}{suffix}";
   }
+
+  private static PromptSelectorResult CreateCustomPrompt(
+    GlobalPreferences globalPreferences,
+    string? defaultPromptKey,
+    ITuiConsole console,
+    IKeyReader keys)
+  {
+    while (true)
+    {
+      var (name, nameOk, nameQuit) = TextInputPrompt.Read(
+        "Prompt name:",
+        string.Empty,
+        console,
+        keys,
+        static n => string.IsNullOrWhiteSpace(n) ? "Name cannot be empty." : null);
+
+      if (nameQuit)
+      {
+        return new PromptSelectorResult(null, null, globalPreferences, StepResult.Quit);
+      }
+
+      if (!nameOk)
+      {
+        return Show(globalPreferences, defaultPromptKey, console, keys);
+      }
+
+      var (text, textOk, textQuit) = TextInputPrompt.Read(
+        "Prompt text:",
+        string.Empty,
+        console,
+        keys,
+        static t => string.IsNullOrWhiteSpace(t) ? "Prompt text cannot be empty." : null);
+
+      if (textQuit)
+      {
+        return new PromptSelectorResult(null, null, globalPreferences, StepResult.Quit);
+      }
+
+      if (!textOk)
+      {
+        continue;
+      }
+
+      var trimmedName = name.Trim();
+      var trimmedText = text.Trim();
+
+      var updatedPrompts = new Dictionary<string, string>(
+        globalPreferences.CustomPrompts,
+        StringComparer.OrdinalIgnoreCase)
+      {
+        [trimmedName] = trimmedText,
+      };
+
+      var updatedPreferences = globalPreferences with { CustomPrompts = updatedPrompts };
+
+      return Show(updatedPreferences, defaultPromptKey, console, keys);
+    }
+  }
+
+  private sealed record PromptEntry(string Key, string Display, string Text, EntryKind Kind);
 }
