@@ -218,10 +218,16 @@ internal static class TuiWizard
     {
       if (showZeroFilesHint)
       {
-        console.Ansi.MarkupLine("[yellow]Select at least one file (Ctrl+Q to go back, Esc to quit).[/]");
+        TuiRender.ResetScreenWithAppHeader(console);
       }
 
-      var selection = FileSearchPrompt.Show(files, state.PinnedFiles, console, keys);
+      var selection = FileSearchPrompt.Show(
+        files,
+        state.SelectedFiles,
+        state.PinnedFiles,
+        console,
+        keys,
+        validationMessageMarkup: showZeroFilesHint ? "[red]Select at least one file[/]" : null);
 
       if (selection.Step == StepResult.Quit)
       {

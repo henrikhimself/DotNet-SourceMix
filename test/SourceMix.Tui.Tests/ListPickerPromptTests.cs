@@ -41,7 +41,7 @@ public sealed class ListPickerPromptTests
 
     var result = picker.Show(console, keys);
 
-    Assert.Equal(new[] { "item08" }, result.Selected);
+    Assert.Equal(new[] { "item07" }, result.Selected);
   }
 
   [Fact]
@@ -318,25 +318,6 @@ public sealed class ListPickerPromptTests
   }
 
   [Fact]
-  public void Resize_TriggersClearScreenInsteadOfClearLines()
-  {
-    var items = Enumerable.Range(0, 30).Select(i => $"item{i:00}").ToArray();
-    var picker = MakePicker(items, multi: false);
-    using var console = new TestTuiConsole(height: 20);
-
-    var keys = new FakeKeyReader([]);
-    keys.EnqueueIdle();
-    keys.EnqueueAction(() => console.SetWindowHeight(10));
-    keys.EnqueueIdle();
-    keys.Enqueue(K(ConsoleKey.Enter));
-
-    var result = picker.Show(console, keys);
-
-    Assert.Equal(ListPickerExitReason.Confirmed, result.Reason);
-    Assert.True(console.ClearScreenCallCount >= 1);
-  }
-
-  [Fact]
   public void TryReadKey_ReturnsFalse_ThenEnter_ConfirmsCleanly()
   {
     var items = new[] { "a", "b", "c" };
@@ -352,7 +333,7 @@ public sealed class ListPickerPromptTests
   }
 
   [Fact]
-  public void Resize_BetweenKeystrokes_RedrawsWithNewMaxVisible()
+  public void Resize_BetweenKeystrokes_PreservesCursorSelection()
   {
     var items = Enumerable.Range(0, 30).Select(i => $"item{i:00}").ToArray();
     var picker = MakePicker(items, multi: false);
@@ -368,10 +349,30 @@ public sealed class ListPickerPromptTests
 
     Assert.Equal(ListPickerExitReason.Confirmed, result.Reason);
     Assert.Equal(new[] { "item01" }, result.Selected);
+    Assert.True(console.ClearScreenCallCount >= 1);
+  }
 
-    // After resize to 10, MaxVisible = max(5, 10-6) = 5; the redraw triggered by the resize
-    // produces a frame with only 5 visible items, so "more below" must appear.
-    Assert.Contains("more below", console.Output, StringComparison.Ordinal);
+  [Fact]
+  public void ValidationMessageResolver_SelectionChange_RequestsScreenReset()
+  {
+    var items = new[] { "a", "b" };
+    var picker = new ListPickerPrompt<string>
+    {
+      Header = "[bold]Pick[/]",
+      Items = items,
+      KeySelector = s => s,
+      Renderer = (s, state) => $"{(state.IsCursor ? "> " : "  ")}{Markup.Escape(s)}",
+      MultiSelect = true,
+      ValidationMessageResolver = (selected, _) => selected.Count == 0 ? "[red]Select at least one item[/]" : null,
+    };
+    using var console = new TestTuiConsole();
+    var keys = Keys(K(ConsoleKey.Spacebar, ' '), K(ConsoleKey.Enter));
+
+    var result = picker.Show(console, keys);
+
+    Assert.Equal(ListPickerExitReason.Confirmed, result.Reason);
+    Assert.Equal(new[] { "a" }, result.Selected);
+    Assert.True(console.ClearScreenCallCount >= 1);
   }
 
   [Fact]

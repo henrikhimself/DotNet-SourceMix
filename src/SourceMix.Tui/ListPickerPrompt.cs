@@ -15,6 +15,18 @@ internal sealed class ListPickerPrompt<T>
 
   public Func<string, IReadOnlyList<T>>? Filter { get; init; }
 
+  /// <summary>
+  /// Gets an optional validation or status message rendered below the shared
+  /// app header and above the picker header.
+  /// </summary>
+  public string? ValidationMessageMarkup { get; init; }
+
+  /// <summary>
+  /// Gets an optional resolver that can show or hide the validation message
+  /// based on the current selection state.
+  /// </summary>
+  public Func<IReadOnlySet<string>, IReadOnlySet<string>, string?>? ValidationMessageResolver { get; init; }
+
   public bool MultiSelect { get; init; }
 
   public bool AllowPin { get; init; }
@@ -37,6 +49,8 @@ internal sealed class ListPickerPrompt<T>
   public string? InitialCursorKey { get; init; }
 
   public Func<ConsoleKeyInfo, ListPickerKeyAction>? KeyOverride { get; init; }
+
+  public Func<ConsoleKeyInfo, HashSet<string>, HashSet<string>, ListPickerKeyAction>? StateKeyOverride { get; init; }
 
   /// <summary>
   /// Gets an optional callback invoked when the user presses Ctrl+D on the
@@ -68,6 +82,8 @@ internal sealed class ListPickerPrompt<T>
     var scroll = 0;
     var pollInterval = TimeSpan.FromMilliseconds(150);
     var items = Items;
+    string? previousValidationMessage = null;
+    var hasRenderedFrame = false;
 
     if (InitialCursorKey is not null && current.Count > 0)
     {
@@ -101,8 +117,21 @@ internal sealed class ListPickerPrompt<T>
         }
       }
 
-      const int ReservedRows = 10;
-      var maxVisible = Math.Max(5, console.WindowHeight - ReservedRows);
+      var validationMessage = ResolveValidationMessage(selected, pinned);
+
+      if (hasRenderedFrame && !string.Equals(previousValidationMessage, validationMessage, StringComparison.Ordinal))
+      {
+        TuiRender.ResetScreenWithAppHeader(console);
+      }
+
+      var reservedRows = 7;
+
+      if (validationMessage is not null)
+      {
+        reservedRows += TuiRender.RowsFor(validationMessage, console.WindowWidth);
+      }
+
+      var maxVisible = Math.Max(5, console.WindowHeight - reservedRows);
 
       if (current.Count > 0)
       {
@@ -126,7 +155,9 @@ internal sealed class ListPickerPrompt<T>
         scroll = 0;
       }
 
-      var rendered = Render(console, current, filterText, cursor, scroll, maxVisible, selected, pinned);
+      var rendered = Render(console, current, filterText, cursor, scroll, maxVisible, selected, pinned, validationMessage);
+      previousValidationMessage = validationMessage;
+      hasRenderedFrame = true;
       var lastWindowHeight = console.WindowHeight;
 
       ConsoleKeyInfo key;
@@ -162,6 +193,23 @@ internal sealed class ListPickerPrompt<T>
       if (KeyOverride is not null)
       {
         var action = KeyOverride(key);
+
+        if (action == ListPickerKeyAction.Exit)
+        {
+          console.Ansi.WriteLine();
+
+          return BuildResult(current, cursor, selected, pinned, ListPickerExitReason.KeyOverride, key);
+        }
+
+        if (action == ListPickerKeyAction.Handled)
+        {
+          continue;
+        }
+      }
+
+      if (StateKeyOverride is not null)
+      {
+        var action = StateKeyOverride(key, selected, pinned);
 
         if (action == ListPickerKeyAction.Exit)
         {
@@ -371,12 +419,20 @@ internal sealed class ListPickerPrompt<T>
     int scroll,
     int maxVisible,
     HashSet<string> selected,
-    HashSet<string> pinned)
+    HashSet<string> pinned,
+    string? validationMessageMarkup)
   {
     var ansi = console.Ansi;
     var width = console.WindowWidth;
+
+    if (validationMessageMarkup is not null)
+    {
+      ansi.MarkupLine(validationMessageMarkup);
+    }
+
+    var lines = validationMessageMarkup is null ? 0 : TuiRender.RowsFor(validationMessageMarkup, width);
     ansi.MarkupLine(Header);
-    var lines = TuiRender.RowsFor(Header, width);
+    lines += TuiRender.RowsFor(Header, width);
 
     if (Filter is not null)
     {
@@ -427,5 +483,15 @@ internal sealed class ListPickerPrompt<T>
     }
 
     return lines;
+  }
+
+  private string? ResolveValidationMessage(HashSet<string> selected, HashSet<string> pinned)
+  {
+    if (ValidationMessageResolver is not null)
+    {
+      return ValidationMessageResolver(selected, pinned);
+    }
+
+    return ValidationMessageMarkup;
   }
 }

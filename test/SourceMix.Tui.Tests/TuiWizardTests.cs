@@ -297,7 +297,53 @@ public sealed class TuiWizardTests
 
     Assert.False(result.Confirmed);
     Assert.True(result.Quit);
-    Assert.Contains("Select at least one file", console.Output, StringComparison.Ordinal);
+    Assert.True(console.ClearScreenCallCount >= 2);
+    AssertValidationFrame(console.Output);
+  }
+
+  [Fact]
+  public void BackToFilesStep_PreservesSelectedFiles()
+  {
+    using var console = new TestTuiConsole();
+    var keys = new FakeKeyReader(
+    [
+      K(ConsoleKey.DownArrow),
+      K(ConsoleKey.Spacebar, ' '),
+      K(ConsoleKey.Enter),
+      K(ConsoleKey.Enter),
+      CtrlQ(),
+      CtrlQ(),
+      K(ConsoleKey.Enter),
+      K(ConsoleKey.Enter),
+      K(ConsoleKey.Enter),
+      K(ConsoleKey.Enter),
+      K(ConsoleKey.Enter),
+    ]);
+
+    var result = RunWizard(console, keys);
+
+    Assert.True(result.Confirmed);
+    Assert.Equal(new[] { "/repo/Bar.cs" }, result.SelectedFiles);
+  }
+
+  [Fact]
+  public void FilesStep_CtrlR_ClearsSelectedFiles()
+  {
+    using var console = new TestTuiConsole();
+    var keys = new FakeKeyReader(
+    [
+      K(ConsoleKey.Spacebar, ' '),
+      CtrlR(),
+      K(ConsoleKey.Enter),
+      K(ConsoleKey.Escape),
+    ]);
+
+    var result = RunWizard(console, keys);
+
+    Assert.False(result.Confirmed);
+    Assert.True(result.Quit);
+    Assert.True(console.ClearScreenCallCount >= 2);
+    AssertValidationFrame(console.Output);
   }
 
   [Fact]
@@ -392,4 +438,18 @@ public sealed class TuiWizardTests
 
   private static ConsoleKeyInfo CtrlQ()
     => new('\x11', ConsoleKey.Q, shift: false, alt: false, control: true);
+
+  private static ConsoleKeyInfo CtrlR()
+    => new('\x12', ConsoleKey.R, shift: false, alt: false, control: true);
+
+  private static void AssertValidationFrame(string output)
+  {
+    var headerIndex = output.LastIndexOf("SourceMix", StringComparison.Ordinal);
+    var validationIndex = output.LastIndexOf("Select at least one file", StringComparison.Ordinal);
+    var tabsIndex = output.LastIndexOf("Search  Pinned  Selected", StringComparison.Ordinal);
+
+    Assert.True(headerIndex >= 0, "Expected the Files step to include the app header.");
+    Assert.True(validationIndex > headerIndex, "Expected the validation message to appear below the app header.");
+    Assert.True(tabsIndex > validationIndex, "Expected the Files-step tabs to appear below the validation message.");
+  }
 }

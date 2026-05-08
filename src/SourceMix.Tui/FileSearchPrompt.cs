@@ -15,16 +15,29 @@ internal static class FileSearchPrompt
     IReadOnlyList<CsFile> files,
     IReadOnlySet<string> pinnedPaths,
     ITuiConsole? tuiConsole = null,
-    IKeyReader? keys = null)
+    IKeyReader? keys = null,
+    string? validationMessageMarkup = null)
+  {
+    return Show(files, pinnedPaths, pinnedPaths, tuiConsole, keys, validationMessageMarkup);
+  }
+
+  internal static FileSelection Show(
+    IReadOnlyList<CsFile> files,
+    IReadOnlySet<string> selectedPaths,
+    IReadOnlySet<string> pinnedPaths,
+    ITuiConsole? tuiConsole = null,
+    IKeyReader? keys = null,
+    string? validationMessageMarkup = null)
   {
     ArgumentNullException.ThrowIfNull(files);
+    ArgumentNullException.ThrowIfNull(selectedPaths);
     ArgumentNullException.ThrowIfNull(pinnedPaths);
 
     tuiConsole ??= new SystemTuiConsole();
     keys ??= new ConsoleKeyReader();
 
     var comparer = StringComparer.OrdinalIgnoreCase;
-    var selected = new HashSet<string>(pinnedPaths, comparer);
+    var selected = new HashSet<string>(selectedPaths, comparer);
     var pinned = new HashSet<string>(pinnedPaths, comparer);
 
     var view = ViewMode.Search;
@@ -33,9 +46,9 @@ internal static class FileSearchPrompt
     {
       var result = view switch
       {
-        ViewMode.Search => RunSearch(files, selected, pinned, tuiConsole, keys),
-        ViewMode.Pinned => RunPinned(files, selected, pinned, tuiConsole, keys),
-        _ => RunSelected(files, selected, pinned, tuiConsole, keys),
+        ViewMode.Search => RunSearch(files, selected, pinned, validationMessageMarkup, tuiConsole, keys),
+        ViewMode.Pinned => RunPinned(files, selected, pinned, validationMessageMarkup, tuiConsole, keys),
+        _ => RunSelected(files, selected, pinned, validationMessageMarkup, tuiConsole, keys),
       };
 
       SyncState(result, selected, pinned);
@@ -71,12 +84,15 @@ internal static class FileSearchPrompt
     IReadOnlyList<CsFile> files,
     HashSet<string> selected,
     HashSet<string> pinned,
+    string? validationMessageMarkup,
     ITuiConsole console,
     IKeyReader keys)
   {
     var picker = new ListPickerPrompt<CsFile>
     {
-      Header = "[bold underline]Search[/]  [dim]Pinned[/]  [dim]Selected[/]  [dim](Tab \u00b7 Space select/deselect \u00b7 Ctrl+P pin/unpin \u00b7 Ctrl+U clear search \u00b7 Enter confirm \u00b7 Ctrl+Q quit)[/]",
+      ValidationMessageMarkup = validationMessageMarkup,
+      ValidationMessageResolver = validationMessageMarkup is null ? null : (currentSelected, _) => currentSelected.Count == 0 ? validationMessageMarkup : null,
+      Header = "[bold underline]Search[/]  [dim]Pinned[/]  [dim]Selected[/]  [dim](Tab \u00b7 Space select/deselect \u00b7 Ctrl+P pin/unpin \u00b7 Ctrl+R clear selected \u00b7 Ctrl+U clear search \u00b7 Enter confirm \u00b7 Ctrl+Q quit)[/]",
       Items = files,
       KeySelector = static f => f.FullPath,
       MultiSelect = true,
@@ -87,6 +103,7 @@ internal static class FileSearchPrompt
       Filter = text => Filter(files, text),
       Renderer = RenderSearchRow,
       KeyOverride = TabOverride,
+      StateKeyOverride = ClearSelectedOverride,
     };
 
     return picker.Show(console, keys);
@@ -96,6 +113,7 @@ internal static class FileSearchPrompt
     IReadOnlyList<CsFile> files,
     HashSet<string> selected,
     HashSet<string> pinned,
+    string? validationMessageMarkup,
     ITuiConsole console,
     IKeyReader keys)
   {
@@ -106,6 +124,8 @@ internal static class FileSearchPrompt
 
     var picker = new ListPickerPrompt<CsFile>
     {
+      ValidationMessageMarkup = validationMessageMarkup,
+      ValidationMessageResolver = validationMessageMarkup is null ? null : (currentSelected, _) => currentSelected.Count == 0 ? validationMessageMarkup : null,
       Header = "[dim]Search[/]  [bold underline]Pinned[/]  [dim]Selected[/]  [dim](Tab \u00b7 Ctrl+P unpin/pin \u00b7 Enter confirm \u00b7 Ctrl+Q quit)[/]",
       Items = pinnedList,
       KeySelector = static f => f.FullPath,
@@ -125,6 +145,7 @@ internal static class FileSearchPrompt
     IReadOnlyList<CsFile> files,
     HashSet<string> selected,
     HashSet<string> pinned,
+    string? validationMessageMarkup,
     ITuiConsole console,
     IKeyReader keys)
   {
@@ -135,6 +156,8 @@ internal static class FileSearchPrompt
 
     var picker = new ListPickerPrompt<CsFile>
     {
+      ValidationMessageMarkup = validationMessageMarkup,
+      ValidationMessageResolver = validationMessageMarkup is null ? null : (currentSelected, _) => currentSelected.Count == 0 ? validationMessageMarkup : null,
       Header = "[dim]Search[/]  [dim]Pinned[/]  [bold underline]Selected[/]  [dim](Tab \u00b7 Space deselect/select \u00b7 Ctrl+P pin/unpin \u00b7 Enter confirm \u00b7 Ctrl+Q quit)[/]",
       Items = selectedList,
       KeySelector = static f => f.FullPath,
@@ -152,6 +175,23 @@ internal static class FileSearchPrompt
 
   private static ListPickerKeyAction TabOverride(ConsoleKeyInfo key)
     => key.Key == ConsoleKey.Tab ? ListPickerKeyAction.Exit : ListPickerKeyAction.NotHandled;
+
+  private static ListPickerKeyAction ClearSelectedOverride(
+    ConsoleKeyInfo key,
+    HashSet<string> selected,
+    HashSet<string> pinned)
+  {
+    var ctrl = (key.Modifiers & ConsoleModifiers.Control) != 0;
+
+    if (!ctrl || key.Key != ConsoleKey.R)
+    {
+      return ListPickerKeyAction.NotHandled;
+    }
+
+    selected.Clear();
+
+    return ListPickerKeyAction.Handled;
+  }
 
   private static IReadOnlyList<CsFile> Filter(IReadOnlyList<CsFile> files, string search)
   {

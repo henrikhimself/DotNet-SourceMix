@@ -51,6 +51,7 @@ public sealed class SourceMixTuiApplicationTests
     var written = fs.File.ReadAllText(outputPath);
     Assert.Contains("class Foo", written, StringComparison.Ordinal);
     Assert.Contains("# Source code", written, StringComparison.Ordinal);
+    Assert.DoesNotContain("SourceMix —", ansi.Output, StringComparison.Ordinal);
   }
 
   [Fact]

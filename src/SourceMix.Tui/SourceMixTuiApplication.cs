@@ -47,9 +47,6 @@ public static class SourceMixTuiApplication
       return 1;
     }
 
-    ansiConsole.MarkupLine($"[bold]SourceMix[/] [dim]— {Markup.Escape(solutionDirectory)}[/]");
-    ansiConsole.WriteLine();
-
     var preferences = PreferencesManager.Load(fileSystem, solutionDirectory);
     var globalPreferences = PreferencesManager.LoadGlobal(fileSystem);
 

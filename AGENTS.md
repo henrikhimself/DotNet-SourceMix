@@ -2,7 +2,7 @@
 
 ## Project overview
 
-This solution now ships as a single dotnet tool command:
+This solution ships as a single dotnet tool command:
 
 - **`src/SourceMix`** — Tool host and CLI entry point. Standard argument-driven usage runs the non-interactive CLI flow, and the `tui` subcommand launches the interactive workflow.
 - **`src/SourceMix.Tui`** — Interactive TUI library used by the tool host for the keyboard-driven file picker, option prompts, prompt personality selector, and skill selector.
@@ -16,6 +16,18 @@ Both tools share a common library:
 - .NET 10.0
 - C#
 - Multi-platform support (Windows, Linux, macOS, containers)
+
+## Documentation sources
+
+- **`SPEC.md`** — Product specification for the CLI and TUI. Read this file before you change user-visible behavior, command options, workflow steps, output format, or configuration rules.
+- **`adr/`** — Architecture decision records. Read the ADR files before you change cross-cutting design, shared infrastructure, storage locations, output structure, dependency resolution, or source-processing behavior.
+
+### ADR storage
+
+- Store new architecture decision records in the repository root `adr/` directory.
+- Use one Markdown file per decision.
+- Use a numeric prefix in the file name, for example `0007-some-decision.md`.
+- Update `adr/README.md` when you add a new ADR.
 
 ## Common Commands
 
@@ -44,6 +56,23 @@ dotnet tool restore
 # Build and run unit tests
 ./scripts/test.bash
 ```
+
+```bash
+# Run the tmux-driven real-terminal TUI smoke tests directly
+./scripts/test-tui.bash
+```
+
+### Real-terminal TUI validation
+
+- `tmux` is available and must be used when changes affect TUI redraw, resize handling, header persistence, wrapped output cleanup, or keyboard-driven screen flow.
+- `./scripts/test.bash` now includes the tmux TUI smoke suite by default. Run `./scripts/test-tui.bash` directly when you need a faster loop on terminal-specific behavior.
+- Keep the xUnit tests in `test/SourceMix.Tui.Tests` for fast logic coverage, but do not treat them as sufficient proof for terminal rendering behavior.
+- For autonomous agent-driven TUI work, use tmux to:
+  - start `SourceMix tui` inside a real terminal session
+  - send keys with `tmux send-keys`
+  - resize the terminal with `tmux resize-window`
+  - inspect the rendered screen with `tmux capture-pane`
+- When a bug is about what the user can see in the terminal, prefer the tmux path over adding more fake-console assertions.
 
 ### Benchmarks
 

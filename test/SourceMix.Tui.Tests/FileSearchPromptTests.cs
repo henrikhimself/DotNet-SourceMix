@@ -43,26 +43,7 @@ public sealed class FileSearchPromptTests
   }
 
   [Fact]
-  public void Tab_RewritesAppHeading_OnEachTransition()
-  {
-    var files = MakeFiles("a.cs", "b.cs");
-    using var console = new TestTuiConsole();
-    var keys = new FakeKeyReader(
-    [
-      K(ConsoleKey.Spacebar, ' '),          // select "a.cs"
-      K(ConsoleKey.Tab),                    // Search -> Pinned (heading 1)
-      K(ConsoleKey.Tab),                    // Pinned -> Selected (heading 2)
-      K(ConsoleKey.Enter),                  // confirm
-    ]);
-
-    FileSearchPrompt.Show(files, new HashSet<string>(StringComparer.OrdinalIgnoreCase), console, keys);
-
-    var occurrences = CountOccurrences(console.Output, "SourceMix");
-    Assert.True(occurrences >= 2, $"Expected SourceMix heading to be re-emitted on every Tab transition, but found {occurrences} occurrences.");
-  }
-
-  [Fact]
-  public void ResizeRedraw_RestoresAppHeading()
+  public void ResizeRedraw_PreservesSelectedPaths()
   {
     var files = MakeFiles("a.cs", "b.cs");
     using var console = new TestTuiConsole();
@@ -76,7 +57,59 @@ public sealed class FileSearchPromptTests
 
     Assert.Equal(new[] { Path("a.cs") }, result.SelectedPaths);
     Assert.True(console.ClearScreenCallCount >= 1);
-    Assert.Contains("SourceMix", console.Output, StringComparison.Ordinal);
+  }
+
+  [Fact]
+  public void ValidationMessage_RendersBeforeTabs_AndSelectionStillWorks()
+  {
+    var files = MakeFiles("a.cs", "b.cs");
+    using var console = new TestTuiConsole();
+    var keys = new FakeKeyReader(
+    [
+      K(ConsoleKey.Spacebar, ' '),
+      K(ConsoleKey.Enter),
+    ]);
+
+    var result = FileSearchPrompt.Show(
+      files,
+      new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+      console,
+      keys,
+      validationMessageMarkup: "[red]Select at least one file[/]");
+
+    Assert.Equal(new[] { Path("a.cs") }, result.SelectedPaths);
+
+    var validationIndex = console.Output.IndexOf("Select at least one file", StringComparison.Ordinal);
+    var tabsIndex = console.Output.IndexOf("Search  Pinned  Selected", StringComparison.Ordinal);
+
+    Assert.True(validationIndex >= 0, "Expected the validation message to be rendered.");
+    Assert.True(tabsIndex > validationIndex, "Expected the Files-step tabs to appear below the validation message.");
+  }
+
+  [Fact]
+  public void ValidationMessage_PersistsAcrossTabChanges_UntilSelectionIsMade()
+  {
+    var files = MakeFiles("a.cs", "b.cs");
+    using var console = new TestTuiConsole();
+    var keys = new FakeKeyReader(
+    [
+      K(ConsoleKey.Tab),
+      K(ConsoleKey.Tab),
+      K(ConsoleKey.Tab),
+      K(ConsoleKey.Spacebar, ' '),
+      K(ConsoleKey.Enter),
+    ]);
+
+    var result = FileSearchPrompt.Show(
+      files,
+      new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+      console,
+      keys,
+      validationMessageMarkup: "[red]Select at least one file[/]");
+
+    Assert.Equal(new[] { Path("a.cs") }, result.SelectedPaths);
+    Assert.True(console.ClearScreenCallCount >= 3);
+    Assert.Contains("Select at least one file", console.Output, StringComparison.Ordinal);
   }
 
   [Fact]
@@ -185,6 +218,40 @@ public sealed class FileSearchPromptTests
 
     Assert.Contains(Path("b.cs"), result.SelectedPaths);
     Assert.Contains(Path("b.cs"), result.PinnedPaths);
+  }
+
+  [Fact]
+  public void InitialSelectedPaths_AreRestored_WhenNotPinned()
+  {
+    var files = MakeFiles("a.cs", "b.cs");
+    using var console = new TestTuiConsole();
+    var keys = new FakeKeyReader([K(ConsoleKey.Enter)]);
+    var selected = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Path("b.cs") };
+    var pinned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    var result = FileSearchPrompt.Show(files, selected, pinned, console, keys);
+
+    Assert.Equal(new[] { Path("b.cs") }, result.SelectedPaths);
+    Assert.Empty(result.PinnedPaths);
+  }
+
+  [Fact]
+  public void CtrlR_ClearsSelections_WithoutClearingPins()
+  {
+    var files = MakeFiles("a.cs", "b.cs");
+    using var console = new TestTuiConsole();
+    var keys = new FakeKeyReader(
+    [
+      K(ConsoleKey.R, 'r', ctrl: true),
+      K(ConsoleKey.Enter),
+    ]);
+    var selected = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Path("a.cs"), Path("b.cs") };
+    var pinned = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Path("a.cs") };
+
+    var result = FileSearchPrompt.Show(files, selected, pinned, console, keys);
+
+    Assert.Empty(result.SelectedPaths);
+    Assert.Contains(Path("a.cs"), result.PinnedPaths);
   }
 
   [Fact]
@@ -321,19 +388,5 @@ public sealed class FileSearchPromptTests
       : ConsoleKey.Oem1;
 
     return new ConsoleKeyInfo(c, key, shift: false, alt: false, control: false);
-  }
-
-  private static int CountOccurrences(string haystack, string needle)
-  {
-    var count = 0;
-    var index = 0;
-
-    while ((index = haystack.IndexOf(needle, index, StringComparison.Ordinal)) >= 0)
-    {
-      count++;
-      index += needle.Length;
-    }
-
-    return count;
   }
 }

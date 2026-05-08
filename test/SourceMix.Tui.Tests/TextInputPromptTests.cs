@@ -160,7 +160,7 @@ public sealed class TextInputPromptTests
   }
 
   [Fact]
-  public void Read_ResizeDuringInput_RedrawsWithoutLosingTypedText()
+  public void Read_ResizeDuringInput_PreservesTypedText()
   {
     using var console = new TestTuiConsole(height: 24);
     var keys = new FakeKeyReader([]);
@@ -176,7 +176,6 @@ public sealed class TextInputPromptTests
     Assert.Equal("abc", text);
     Assert.True(confirmed);
     Assert.True(console.ClearScreenCallCount >= 1);
-    Assert.Contains("SourceMix", console.Output, StringComparison.Ordinal);
   }
 
   [Fact]
